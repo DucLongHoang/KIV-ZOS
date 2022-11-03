@@ -1,0 +1,3 @@
+jablka 100
+hrusky 50
+tresne 60

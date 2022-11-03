@@ -1,0 +1,5 @@
+Analyza souboru neco.txt
+Provedeno dne Thu  6 Oct 10:45:31 CEST 2022
+neco.txt: ASCII text
+Analyzu provedl: 
+long
