@@ -33,5 +33,6 @@
 
 # IDE and editor files
 cmake-build-debug
+build
 *.idea
 *.vscode

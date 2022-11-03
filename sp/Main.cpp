@@ -6,6 +6,7 @@
 #include <map>
 #include <filesystem>
 #include <fstream>
+#include "Lib.hpp"
 
 
 void cmd_cp(const std::vector<std::string>& args) {
@@ -130,8 +131,10 @@ void processInput(const std::string& input) {
 int main(int argc, char** argv) {
 
     std::string input;
+    Lib lib(5, 9);
 
     while(true) {
+        std::cout << lib.getSum();
         std::cout << ">";
         std::getline(std::cin, input);
         processInput(input);
