@@ -37,7 +37,10 @@ build
 out
 *.idea
 *.vscode
-.vs
+*.vs
 *.sln
-*vcxproj*
+*.vcxproj
+*.vcxproj.*
 x64
+/.vs/
+/x64/
