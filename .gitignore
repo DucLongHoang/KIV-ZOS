@@ -34,5 +34,10 @@
 # IDE and editor files
 cmake-build-debug
 build
+out
 *.idea
 *.vscode
+.vs
+*.sln
+*vcxproj*
+x64
