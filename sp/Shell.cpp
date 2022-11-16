@@ -63,7 +63,8 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
 }
 
 bool Shell::cp(const std::vector<std::string>& args) {
-
+    fs->fs_write(args);
+    std::cout << "Writting..." << std::endl;
     return false;
 }
 

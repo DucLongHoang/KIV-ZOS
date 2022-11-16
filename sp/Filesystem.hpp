@@ -53,9 +53,6 @@ class FAT : public IFilesystem {
             fs.open(name, std::ios::out | std::ios::in | std::ios::app | std::ios::binary);
             if (!fs.is_open())
                 std::cout << "Could not mount filesystem: " << name << std::endl;
-
-            fs.seekp(1024*1024*200 - 1);
-            fs.write("d", 1);
         }
         ~FAT() = default;
 
