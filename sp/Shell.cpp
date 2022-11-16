@@ -1,11 +1,16 @@
 #include "Shell.hpp"
 
 void Shell::run() {
+    auto isWhiteSpace = [](const std::string& s) -> bool {
+        return std::all_of(s.begin(), s.end(), isspace);
+    };
+
     std::string input;
     while (true) {
         std::cout << ">";
-        std::cin >> input;
-        process_input(input);
+        std::getline(std::cin, input);
+        if (!isWhiteSpace(input))
+            process_input(input);
     }
 }
 
@@ -23,7 +28,7 @@ void Shell::process_input(const std::string &input) {
         args.emplace_back(token);
     }
 
-    // find function
+    // find CMD by string
     auto mapCmd = [this](const std::string& cmdStr) -> Shell::CMD {
         auto itr = cmdMap.find(cmdStr);
         if (itr == cmdMap.end() ){
@@ -37,74 +42,23 @@ void Shell::process_input(const std::string &input) {
 
 void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
     switch (CMD) {
-        case CMD::CP: {
-            
-            break;
-        }
-        case CMD::MV: {
-            
-            break;
-        }
-        case CMD::RM: {
-            
-            break;
-        }
-        case CMD::MKDIR: {
-            
-            break;
-        }
-        case CMD::RMDIR: {
-            
-            break;
-        }
-        case CMD::LS: {
-            
-            break;
-        }
-        case CMD::CAT: {
-            
-            break;
-        }
-        case CMD::CD: {
-            
-            break;
-        }
-        case CMD::PWD: {
-            
-            break;
-        }
-        case CMD::INFO: {
-            
-            break;
-        }
-        case CMD::INCP: {
-            
-            break;
-        }
-        case CMD::OUTCP: {
-            
-            break;
-        }
-        case CMD::LOAD: {
-            
-            break;
-        }
-        case CMD::FORMAT: {
-            
-            break;
-        }
-        case CMD::XCP: {
-            
-            break;
-        }
-        case CMD::EXIT: {
-            
-            break;
-        }
-        case CMD::UNKNOWN: {
-            
-            break;
-        }
+        case CMD::CP: cp(args); break;
+        case CMD::MV: mv(args); break;
+        case CMD::RM: rm(args);break;
+        case CMD::MKDIR: mkdir(args); break;
+        case CMD::RMDIR: rmdir(args); break;
+        case CMD::LS: ls(args); break;
+        case CMD::CAT: cat(args); break;
+        case CMD::CD: cd(args); break;
+        case CMD::PWD: pwd(args); break;
+        case CMD::INFO: info(args); break;
+        case CMD::INCP: incp(args); break;
+        case CMD::OUTCP: outcp(args); break;
+        case CMD::LOAD: load(args); break;
+        case CMD::FORMAT: format(args); break;
+        case CMD::XCP: xcp(args); break;
+        case CMD::EXIT: exit(args); break;
+        case CMD::UNKNOWN: unknown(args); break;
     }
 }
 
@@ -186,6 +140,11 @@ bool Shell::xcp(const std::vector<std::string>& args) {
 }
 
 bool Shell::exit(const std::vector<std::string>& args) {
+    std::exit(EXIT_FAILURE);
+    return false;
+}
 
+bool Shell::unknown(const std::vector<std::string> &args) {
+    std::cout << "Unknown command" << std::endl;
     return false;
 }

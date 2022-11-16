@@ -16,11 +16,11 @@ class Shell {
 
 	public:
 		enum class CMD {
-			CP, MV, RM, MKDIR, RMDIR, LS, CAT, CD, PWD, 
+			CP, MV, RM, MKDIR, RMDIR, LS, CAT, CD, PWD,
 			INFO, INCP, OUTCP, LOAD, FORMAT, XCP, EXIT, UNKNOWN
 		};
 
-		Shell(const std::shared_ptr<IFilesystem>& ifs) { fs = ifs; }
+		explicit Shell(std::shared_ptr<IFilesystem>  ifs) : fs(std::move(ifs)) {}
 		~Shell() = default;
 
 		void run();
@@ -44,12 +44,13 @@ class Shell {
 		bool format(const std::vector<std::string>& args);
 		bool xcp(const std::vector<std::string>& args);
 		bool exit(const std::vector<std::string>& args);
+		bool unknown(const std::vector<std::string>& args);
 
-		// map of comands
-		std::unordered_map<const std::string&, const CMD&> cmdMap = {
-			{"cp", CMD::CP}, {"mv", CMD::MV}, {"rm", CMD::RM}, {"mkdir", CMD::MKDIR},
-			{"rmdir", CMD::RMDIR}, {"ls", CMD::LS}, {"cat", CMD::CAT}, {"cd", CMD::CD},
-			{"pwd", CMD::PWD}, {"info", CMD::INFO}, {"incp", CMD::INCP}, {"outcp", CMD::OUTCP}, 
-			{"load", CMD::LOAD}, {"format", CMD::FORMAT},{"xcp", CMD::XCP}, {"exit", CMD::EXIT}
-		};
+		// map of commands
+		const std::unordered_map<std::string, CMD> cmdMap = {
+                {"cp", CMD::CP}, {"mv", CMD::MV}, {"rm", CMD::RM}, {"mkdir", CMD::MKDIR},
+                {"rmdir", CMD::RMDIR}, {"ls", CMD::LS}, {"cat", CMD::CAT}, {"cd", CMD::CD},
+                {"pwd", CMD::PWD}, {"info", CMD::INFO}, {"incp", CMD::INCP}, {"outcp", CMD::OUTCP},
+                {"load", CMD::LOAD}, {"format", CMD::FORMAT},{"xcp", CMD::XCP}, {"exit", CMD::EXIT}
+        };
 };
