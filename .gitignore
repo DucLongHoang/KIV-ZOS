@@ -42,3 +42,7 @@ out
 *.vcxproj
 *.vcxproj.*
 x64
+
+# aux files
+*.zip
+Max_sp/
