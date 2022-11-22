@@ -12,7 +12,7 @@
 class Shell {
 
 	private:
-		std::shared_ptr<IFilesystem> fs;
+		std::shared_ptr<IFilesystem> mFS;
 
 	public:
 		enum class CMD {
@@ -20,7 +20,7 @@ class Shell {
 			INFO, INCP, OUTCP, LOAD, FORMAT, XCP, EXIT, UNKNOWN
 		};
 
-		explicit Shell(std::shared_ptr<IFilesystem>  ifs) : fs(std::move(ifs)) {}
+		explicit Shell(std::shared_ptr<IFilesystem>  ifs) : mFS(std::move(ifs)) {}
 		~Shell() = default;
 
 		void run();

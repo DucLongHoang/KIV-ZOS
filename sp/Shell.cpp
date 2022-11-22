@@ -1,15 +1,11 @@
 #include "Shell.hpp"
 
 void Shell::run() {
-    auto isWhiteSpace = [](const std::string& s) -> bool {
-        return std::all_of(s.begin(), s.end(), isspace);
-    };
-
     std::string input;
     while (true) {
         std::cout << ">";
         std::getline(std::cin, input);
-        if (!isWhiteSpace(input))
+        if (!is_white_space(input))
             process_input(input);
     }
 }
@@ -63,7 +59,7 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
 }
 
 bool Shell::cp(const std::vector<std::string>& args) {
-    fs->fs_write(args);
+    mFS->fs_write(args);
     std::cout << "Writting..." << std::endl;
     return false;
 }

@@ -6,6 +6,9 @@
 #include <fstream>
 #include <utility>
 #include <iostream>
+#include <filesystem>
+
+#include "utils.hpp"
 
 /**
  *
@@ -26,15 +29,15 @@ class IFilesystem {
 class FAT : public IFilesystem {
 
 	private:
-        std::fstream fs;
+        std::fstream mFS;
 
-        std::array<char,9> signature;   // author login
-        int diskSize;                   // total size of FS
-        int clusterSize;                // size of one cluster
-        int clusterCount;               // total number of clusters
-        int fatEntryCount;              // number of entries in FAT
-        int fatStartAddress;            // start address of FAT
-        int dataStartAddress;           // start address of data blocks
+        std::array<char,9> mSignature;   // author login
+        int mDiskSize;                   // total size of FS
+        int mClusterSize;                // size of one cluster
+        int mClusterCount;               // total number of clusters
+        int mFatEntryCount;              // number of entries in FAT
+        int mFatStartAddress;            // start address of FAT
+        int mDataStartAddress;           // start address of data blocks
 
 
 	public:
@@ -44,16 +47,14 @@ class FAT : public IFilesystem {
 
         class File {
             std::array<char, 12> filename;  // 7 + 1 + 3 + \0
-            bool isFile;                    // true -> is file, false -> is dir
-            int size;                       // file size
-            int startCluster;               // first cluster of file
+            bool mIsFile;                    // true -> is file, false -> is dir
+            int mSize;                       // file size
+            int mStartCluster;               // first cluster of file
+
+            unsigned int SIZE = sum_sizeof(filename, mIsFile, mSize, mStartCluster);
         };
 
-        FAT(const std::string& name) {
-            fs.open(name, std::ios::out | std::ios::in | std::ios::app | std::ios::binary);
-            if (!fs.is_open())
-                std::cout << "Could not mount filesystem: " << name << std::endl;
-        }
+        FAT(const std::string& name);
         ~FAT() = default;
 
         virtual bool fs_creat(const std::vector<std::string>& args) override;
@@ -62,4 +63,9 @@ class FAT : public IFilesystem {
         virtual bool fs_write(const std::vector<std::string>& args) override;
 //        virtual bool fs_lseek(const std::vector<std::string>& args) = 0;
         virtual bool fs_close(const std::vector<std::string>& args) override;
+
+        unsigned int SIZE() {
+            return sum_sizeof(mSignature, mDiskSize, mClusterSize, mClusterCount, mFatEntryCount, mFatStartAddress,
+                       mDataStartAddress);
+        }
 };
