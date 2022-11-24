@@ -32,6 +32,7 @@ void Shell::process_input(const std::string &input) {
         }
         return itr->second;
     };
+
     const CMD CMD = mapCmd(cmd);
     execute_cmd(CMD, args);
 }
