@@ -66,20 +66,14 @@ void processInput(const std::string& input) {
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        std::cout << "argc: " << argc << std::endl;
+        std::cout << "No. of req. arguments:  2" << std::endl;
+        std::cout << "No. of found arguments: " << argc << std::endl;
         return EXIT_FAILURE;
     }
 
     std::string fsName(argv[1]);
-    std::shared_ptr<IFilesystem> fs = std::make_shared<FAT_Filesystem>(fsName, 200);
-    std::unique_ptr<Shell> shell = std::make_unique<Shell>(fs);
+    std::unique_ptr<Shell> shell = std::make_unique<Shell>(fsName);
     shell->run();
-
-//    int a = sum_sizeof(5, 's', 5.4);
-//
-////    char a = '5';
-//    std::cout << "sizeof: " << a << std::endl;
-//    std::cout << zero_padded_string("HelloThere", 14) << std::endl;
 
 	return EXIT_SUCCESS;
 }

@@ -7,12 +7,14 @@
 #include "FAT.hpp"
 
 /**
- *
+ * Class Shell
  */
 class Shell {
 
 	private:
-		std::shared_ptr<IFilesystem> mFS;
+        std::string mFsName;
+        std::string mCWD;
+		std::unique_ptr<IFilesystem> mFilesystem;
 
 	public:
 		enum class CMD {
@@ -20,9 +22,10 @@ class Shell {
 			INFO, INCP, OUTCP, LOAD, FORMAT, XCP, EXIT, UNKNOWN
 		};
 
-		explicit Shell(std::shared_ptr<IFilesystem>  ifs) : mFS(std::move(ifs)) {}
+		explicit Shell(const std::string& fsName);
 		~Shell() = default;
 
+        void mount_fs(const std::string& fsName);
 		void run();
 		void process_input(const std::string& input);
 		void execute_cmd(const CMD& CMD, const std::vector<std::string>& args);
@@ -48,9 +51,9 @@ class Shell {
 
 		// map of commands
 		const std::unordered_map<std::string, CMD> cmdMap = {
-                {"cp", CMD::CP}, {"mv", CMD::MV}, {"rm", CMD::RM}, {"mkdir", CMD::MKDIR},
-                {"rmdir", CMD::RMDIR}, {"ls", CMD::LS}, {"cat", CMD::CAT}, {"cd", CMD::CD},
-                {"pwd", CMD::PWD}, {"info", CMD::INFO}, {"incp", CMD::INCP}, {"outcp", CMD::OUTCP},
-                {"load", CMD::LOAD}, {"format", CMD::FORMAT},{"xcp", CMD::XCP}, {"exit", CMD::EXIT}
+                {"cp"s, CMD::CP}, {"mv"s, CMD::MV}, {"rm"s, CMD::RM}, {"mkdir"s, CMD::MKDIR},
+                {"rmdir", CMD::RMDIR}, {"ls"s, CMD::LS}, {"cat"s, CMD::CAT}, {"cd"s, CMD::CD},
+                {"pwd"s, CMD::PWD}, {"info"s, CMD::INFO}, {"incp"s, CMD::INCP}, {"outcp"s, CMD::OUTCP},
+                {"load"s, CMD::LOAD}, {"format"s, CMD::FORMAT},{"xcp"s, CMD::XCP}, {"exit"s, CMD::EXIT}
         };
 };

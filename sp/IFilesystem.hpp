@@ -8,6 +8,10 @@
  */
 class IFilesystem {
     public:
+        // methods handling filesystem itself
+        virtual bool init_fs(const std::vector<std::string>& args) = 0;
+        virtual bool mount_fs(const std::vector<std::string>& args) = 0;
+        // methods handling contents of filesystem
         virtual bool fs_creat(const std::vector<std::string>& args) = 0;
         virtual bool fs_open(const std::vector<std::string>& args)  = 0;
         virtual bool fs_read(const std::vector<std::string>& args)  = 0;

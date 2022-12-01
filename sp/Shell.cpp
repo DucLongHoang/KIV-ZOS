@@ -1,9 +1,28 @@
+#include <optional>
+
 #include "Shell.hpp"
+
+Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
+    if (std::filesystem::exists(fsName)) {
+        std::cout << "File system: " << fsName << " found" << std::endl;
+        std::cout << "Mounting file system..." << std::endl;
+        mount_fs(fsName);
+    }
+    else {
+        std::cout << "Create new disk by using cmd: 'format [x] [y]'" << std::endl;
+        std::cout << "[x] = positive integer" << std::endl;
+        std::cout << "[y] = KB or MB (case insensitive)" << std::endl;
+    }
+}
+
+void Shell::mount_fs(const std::string &fsName) {
+    mFilesystem = std::make_unique<FAT_Filesystem>(fsName);
+}
 
 void Shell::run() {
     std::string input;
     while (true) {
-        std::cout << ">";
+        std::cout << mCWD << ">";
         std::getline(std::cin, input);
         if (!is_white_space(input))
             process_input(input);
@@ -11,8 +30,8 @@ void Shell::run() {
 }
 
 void Shell::process_input(const std::string &input) {
-    std::vector<std::string> args;
     std::stringstream stream{input};
+    std::vector<std::string> args;
     std::string cmd;
 
     // get cmd
@@ -33,7 +52,7 @@ void Shell::process_input(const std::string &input) {
         return itr->second;
     };
 
-    const CMD CMD = mapCmd(cmd);
+    auto CMD = mapCmd(cmd);
     execute_cmd(CMD, args);
 }
 
@@ -60,9 +79,8 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
 }
 
 bool Shell::cp(const std::vector<std::string>& args) {
-    mFS->fs_write(args);
-    std::cout << "Writting..." << std::endl;
-    return false;
+    mFilesystem->fs_write(args);
+    return true;
 }
 
 bool Shell::mv(const std::vector<std::string>& args) {
@@ -102,8 +120,13 @@ bool Shell::cd(const std::vector<std::string> &args) {
 }
 
 bool Shell::pwd(const std::vector<std::string>& args) {
+    if (!args.empty()) {
+        std::cout << "Incorrect number of arguments!" << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    return false;
+    std::cout << "Current working directory: " << mCWD << std::endl;
+    return EXIT_SUCCESS;
 }
 
 bool Shell::info(const std::vector<std::string>& args) {
@@ -127,9 +150,19 @@ bool Shell::load(const std::vector<std::string>& args) {
 }
 
 bool Shell::format(const std::vector<std::string>& args) {
+    if (args.size() != 2) {
+        std::cout << "Incorrect number of arguments!" << std::endl;
+        return EXIT_FAILURE;
+    }
 
-
-    return false;
+    if (std::filesystem::exists(mFsName)) {
+        std::cout << "Formatting existing disk..." << std::endl;
+    }
+    else {
+        std::cout << "Creating new disk..." << std::endl;
+    }
+    mFilesystem = std::make_unique<FAT_Filesystem>(mFsName);
+    return mFilesystem->init_fs(args);
 }
 
 bool Shell::xcp(const std::vector<std::string>& args) {
@@ -138,7 +171,7 @@ bool Shell::xcp(const std::vector<std::string>& args) {
 }
 
 bool Shell::exit(const std::vector<std::string>& args) {
-    std::exit(EXIT_FAILURE);
+    std::exit(EXIT_SUCCESS);
     return false;
 }
 

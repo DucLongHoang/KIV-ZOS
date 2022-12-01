@@ -9,68 +9,90 @@
 #include "IFilesystem.hpp"
 #include "utils.hpp"
 
-static const unsigned int CLUSTER_SIZE = 512 * 8;   // 512 bytes
+using namespace std::string_literals;
 
+/**
+ * Class BootSector
+ */
 class BootSector {
     public:
-        std::array<char,9> mSignature;   // author login
-        int mDiskSize;                   // total size of FS
-        int mClusterSize;                // size of one cluster
-        int mClusterCount;               // total number of clusters
-        int mFatEntryCount;              // number of entries in FAT
-        int mFatStartAddress;            // start address of FAT
-        int mDataStartAddress;           // start address of data blocks
+        std::string mSignature;             // author login
+        unsigned int mDiskSize;             // total size of FS
+        unsigned int mClusterSize;          // size of one cluster
+        unsigned int mClusterCount;         // total number of clusters
+        unsigned int mFatEntryCount;        // number of entries in FAT
+        unsigned int mFatStartAddress;      // start address of FAT
+        unsigned int mDataStartAddress;     // start address of data blocks
 
         unsigned int SIZE = sum_sizeof(mSignature, mDiskSize, mClusterSize, mClusterCount,
                                        mFatEntryCount, mFatStartAddress, mDataStartAddress);
         BootSector() = default;
         ~BootSector() = default;
-};
 
-class FAT {
-    public:
-        enum class FLAG {
-            UNUSED, FILE_END, BAD_CLUSTER
-        };
-
-
-};
-
-class DirectoryItem {
-    public:
-        std::array<char, 12> filename;  // 7 + 1 + 3 + \0
-        bool mIsFile;                    // true -> is file, false -> is dir
-        int mSize;                       // file size
-        int mStartCluster;               // first cluster of file
-
-        unsigned int SIZE = sum_sizeof(filename, mIsFile, mSize, mStartCluster);
-        DirectoryItem() = default;
-        ~DirectoryItem() = default;
+        void init(unsigned int diskSize);
+        void init(const std::string &str);
 };
 
 /**
- *
+ * Class FAT - represents a File Allocation Table
+ */
+class FAT {
+    public:
+        static constexpr int FLAG_UNUSED = -1;
+        static constexpr int FLAG_FILE_END = -2;
+        static constexpr int FLAG_BAD_CLUSTER = -3;
+
+        std::vector<int> table;
+        FAT() = default;
+        ~FAT() = default;
+
+        unsigned int SIZE = table.size() * sizeof(unsigned int);
+
+        void init(unsigned int fatEntryCount);
+        void init(const std::string &str);
+};
+
+/**
+ * Class DirectoryItem - can be file or directory
+ */
+class DirectoryItem {
+    public:
+        std::string mFilename;          // 7 + 1 + 3 + \0
+        bool mIsFile;                   // true -> is file, false -> is dir
+        unsigned int mSize;             // file size
+        unsigned int mStartCluster;     // first cluster of file
+        unsigned int SIZE = sum_sizeof(mFilename, mIsFile, mSize, mStartCluster);
+
+        DirectoryItem() = default;
+        ~DirectoryItem() = default;
+        void init(const std::string& filename, bool isFile, int size, int startCLuster);
+        void init(const std::string &str);
+};
+
+/**
+ * Class FAT_Filesystem
  */
 class FAT_Filesystem : public IFilesystem {
     private:
-        std::fstream mFS;
+        std::fstream mFileStream;
+        std::string mDiskName;
 
-        // filesystem areas
         BootSector mBS;
         FAT mFAT;
-            // data area
-//        RootDirectory mRD;
+        DirectoryItem mRootDir;
 //        ClusterArea mCA;
 
     public:
-        FAT_Filesystem(const std::string& name, unsigned int diskSize);
+        FAT_Filesystem(std::string name) : mDiskName(std::move(name)) {}
         ~FAT_Filesystem() = default;
 
-        virtual bool fs_creat(const std::vector<std::string>& args) override;
-        virtual bool fs_open(const std::vector<std::string>& args) override;
-        virtual bool fs_read(const std::vector<std::string>& args) override;
-        virtual bool fs_write(const std::vector<std::string>& args) override;
-    //        virtual bool fs_lseek(const std::vector<std::string>& args) = 0;
-        virtual bool fs_close(const std::vector<std::string>& args) override;
+        bool init_fs(const std::vector<std::string> &args) override;
+        bool mount_fs(const std::vector<std::string> &args) override;
 
+        bool fs_creat(const std::vector<std::string>& args) override;
+        bool fs_open(const std::vector<std::string>& args) override;
+        bool fs_read(const std::vector<std::string>& args) override;
+        bool fs_write(const std::vector<std::string>& args) override;
+    //        virtual bool fs_lseek(const std::vector<std::string>& args) = 0;
+        bool fs_close(const std::vector<std::string>& args) override;
 };
