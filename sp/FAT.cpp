@@ -77,7 +77,8 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
         exit(EXIT_FAILURE);
     }
 
-    write_to_stream(mFileStream, mBS.mSignature);
+    // write boot sector
+    string_to_stream(mFileStream, mBS.mSignature);
     write_to_stream(mFileStream, mBS.mDiskSize);
     write_to_stream(mFileStream, mBS.mClusterSize);
     write_to_stream(mFileStream, mBS.mClusterCount);
@@ -85,16 +86,32 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
     write_to_stream(mFileStream, mBS.mFatStartAddress);
     write_to_stream(mFileStream, mBS.mDataStartAddress);
 
+    // write FAT
     mFileStream.seekp(mBS.mFatStartAddress);
     for_each(mFAT.table.begin(), mFAT.table.end(), [this](int fatEntry) {
         write_to_stream(mFileStream, fatEntry);
     });
 
+    // wipe all clusters
+    std::array<char, CLUSTER_SIZE> cluster{};
+    cluster.fill('\0');
+    mFileStream.seekp(mBS.mDataStartAddress);
+    for (size_t i = 0; i < mBS.mClusterCount; ++i) {
+        write_to_stream(mFileStream, cluster);
+    }
+
+    // write root dir to first cluster
+    mFileStream.seekp(mBS.mDataStartAddress);
+    string_to_stream(mFileStream, mRootDir.mFilename);
+    write_to_stream(mFileStream, mRootDir.mIsFile);
+    write_to_stream(mFileStream, mRootDir.mSize);
+    write_to_stream(mFileStream, mRootDir.mStartCluster);
+
     mFileStream.flush();
     return true;
 }
 
-bool FAT_Filesystem::mount_fs(const std::vector<std::string>& args) {
+bool FAT_Filesystem::mount_fs(const std::vector<std::any>& args) {
     auto mode = std::ios::in | std::ios::out | std::ios::binary | std::ios::ate;
     mFileStream.open(mDiskName, mode);
 
@@ -107,34 +124,38 @@ bool FAT_Filesystem::mount_fs(const std::vector<std::string>& args) {
     return true;
 }
 
-bool FAT_Filesystem::fs_creat(const std::vector<std::string>& args) {
+bool FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
+
 
     return false;
 }
 
-bool FAT_Filesystem::fs_open(const std::vector<std::string>& args) {
+bool FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
 
     return false;
 }
 
-bool FAT_Filesystem::fs_read(const std::vector<std::string>& args) {
+bool FAT_Filesystem::fs_read(const std::vector<std::any>& args) {
 
     return false;
 }
 
-bool FAT_Filesystem::fs_write(const std::vector<std::string>& args) {
+bool FAT_Filesystem::fs_write(const std::vector<std::any>& args) {
     std::cout << "Writing: ";
-    std::for_each(args.begin(), args.end(), [this, args](const std::string& s) {
-        std::cout << s << " ";
-        write_to_stream(mFileStream, s, s.length());
+
+    std::for_each(args.begin(), args.end(), [this, args](const std::any& a) {
+        std::string str{any_cast<std::string>(a)};
+        std::cout << str << " ";
+        string_to_stream(mFileStream, str);
     });
+
     std::cout << std::endl;
     mFileStream.flush();
 
     return false;
 }
 
-bool FAT_Filesystem::fs_close(const std::vector<std::string>& args) {
+bool FAT_Filesystem::fs_close(const std::vector<std::any>& args) {
 
     return false;
 }

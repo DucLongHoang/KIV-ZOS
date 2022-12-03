@@ -89,13 +89,13 @@ class FAT_Filesystem : public IFilesystem {
         FAT_Filesystem(std::string name) : mDiskName(std::move(name)) {}
         ~FAT_Filesystem() = default;
 
-        bool init_fs(const std::vector<std::string> &args) override;
-        bool mount_fs(const std::vector<std::string> &args) override;
+        bool init_fs(const std::vector<std::any> &args) override;
+        bool mount_fs(const std::vector<std::any> &args) override;
 
-        bool fs_creat(const std::vector<std::string>& args) override;
-        bool fs_open(const std::vector<std::string>& args) override;
-        bool fs_read(const std::vector<std::string>& args) override;
-        bool fs_write(const std::vector<std::string>& args) override;
-    //        virtual bool fs_lseek(const std::vector<std::string>& args) = 0;
-        bool fs_close(const std::vector<std::string>& args) override;
+        bool fs_creat(const std::vector<std::any>& args) override;
+        bool fs_open(const std::vector<std::any>& args) override;
+        bool fs_read(const std::vector<std::any>& args) override;
+        bool fs_write(const std::vector<std::any>& args) override;
+    //        virtual bool fs_lseek(const std::vector<std::any>& args) = 0;
+        bool fs_close(const std::vector<std::any>& args) override;
 };
