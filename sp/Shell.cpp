@@ -9,14 +9,17 @@ Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
         mount_fs(fsName);
     }
     else {
+        std::cout << "File system: " << fsName << " not found" << std::endl;
         std::cout << "Create new disk by using cmd: 'format [x] [y]'" << std::endl;
         std::cout << "[x] = positive integer" << std::endl;
-        std::cout << "[y] = KB or MB (case insensitive)" << std::endl;
+        std::cout << "[y] = KB or MB (case sensitive)" << std::endl;
     }
 }
 
 void Shell::mount_fs(const std::string &fsName) {
+    std::vector<std::any> tmp{};
     mFilesystem = std::make_unique<FAT_Filesystem>(fsName);
+    mFilesystem->mount_fs(tmp);
 }
 
 void Shell::run() {

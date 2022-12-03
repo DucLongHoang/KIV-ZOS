@@ -42,12 +42,13 @@ class FAT : public InitializableFromDisk {
         static constexpr int FLAG_UNUSED = -1;
         static constexpr int FLAG_FILE_END = -2;
         static constexpr int FLAG_BAD_CLUSTER = -3;
+        static constexpr int FLAG_NO_FREE_SPACE = -4;
 
         std::vector<int> table;
         FAT() = default;
         ~FAT() = default;
 
-        unsigned int SIZE = table.size() * sizeof(unsigned int);
+        unsigned int SIZE;
 
         void init(unsigned int fatEntryCount);
         void init_from_disk(std::fstream& stream, unsigned int pos) override;
