@@ -2,18 +2,18 @@
 #include <sstream>
 #include "utils.hpp"
 
-void write_to_stream(std::fstream &stream, const std::string &string, unsigned int streamSize) {
-    auto str = zero_padded_string(string, streamSize);
-    stream.write(str.c_str(), streamSize);
+void string_to_stream(std::fstream &stream, std::string &string) {
+    auto str = zero_padded_string(string, string.size());
+    stream.write(str.c_str(), string.size());
 }
 
-void read_from_stream(std::fstream &stream, std::string &string, unsigned int streamSize) {
+std::string string_from_stream(std::fstream &stream, unsigned int streamSize) {
     char temp[streamSize];
     stream.read(temp, streamSize);
-    string = std::string(temp, streamSize);
+    return std::string{temp, streamSize};
 }
 
-std::string zero_padded_string(const std::string& str, unsigned char size) {
+std::string zero_padded_string(const std::string& str, int size) {
     std::ostringstream stream;
     stream << std::left << std::setw(size) << std::setfill('\0') << str ;
     return stream.str();
