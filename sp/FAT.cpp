@@ -11,8 +11,38 @@ void BootSector::init(unsigned int diskSize) {
     mDataStartAddress = BootSector::SIZE + mFatEntryCount * sizeof(unsigned int);
 }
 
+void BootSector::init_from_disk(std::fstream& stream, unsigned int pos) {
+    stream.seekg(pos);
+    mSignature = string_from_stream(stream, 9);
+    read_from_stream(stream, mDiskSize);
+    read_from_stream(stream, mClusterSize);
+    read_from_stream(stream, mClusterCount);
+    read_from_stream(stream, mFatEntryCount);
+    read_from_stream(stream, mFatStartAddress);
+    read_from_stream(stream, mDataStartAddress);
+}
+
 void FAT::init(unsigned int fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
+    SIZE = table.size() * sizeof(unsigned int);
+}
+
+void FAT::init_from_disk(std::fstream& stream, unsigned int pos) {
+    stream.seekg(pos);
+    for (int& fatEntry : table) {
+        read_from_stream(stream, fatEntry);
+    }
+}
+
+void FAT::write_FAT(unsigned int idx, int idxOrFlag) {
+    table[idx] = idxOrFlag;
+}
+
+unsigned int FAT::find_free_index() {
+    for (size_t i = 0; i < table.size(); ++i) {
+        if (table[i] == FAT::FLAG_UNUSED) return i;
+    }
+    return FAT::FLAG_NO_FREE_SPACE;
 }
 
 void DirectoryItem::init(const std::string& filename, bool isFile, int size, int startCLuster) {
@@ -22,9 +52,17 @@ void DirectoryItem::init(const std::string& filename, bool isFile, int size, int
     mStartCluster = startCLuster;
 }
 
-bool FAT_Filesystem::init_fs(const std::vector<std::string>& args) {
-    unsigned int multiplier = (args.back() == "MB"s) ? 1_MB : 1_KB;
-    unsigned int diskSize = std::stoi(args.front()) * multiplier;
+void DirectoryItem::init_from_disk(std::fstream& stream, unsigned int pos) {
+    stream.seekg(pos);
+    mFilename = string_from_stream(stream, 12);
+    read_from_stream(stream, mIsFile);
+    read_from_stream(stream, mSize);
+    read_from_stream(stream, mStartCluster);
+}
+
+bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
+    unsigned int multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
+    unsigned int diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
 
     auto mode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
     mFileStream.open(mDiskName, mode);
@@ -32,6 +70,7 @@ bool FAT_Filesystem::init_fs(const std::vector<std::string>& args) {
     this->mBS.init(diskSize);
     this->mFAT.init(mBS.mFatEntryCount);
     this->mRootDir.init("/"s, false, 0, 0);
+    mFAT.write_FAT(0, FAT::FLAG_FILE_END);
 
     if (!mFileStream) {
         std::cout << "Error opening file" << std::endl;
@@ -60,10 +99,10 @@ bool FAT_Filesystem::mount_fs(const std::vector<std::string>& args) {
     mFileStream.open(mDiskName, mode);
 
     // read info from disk and init
-    // init BS
-
-    // init FAT
-    // init root dir
+    mBS.init_from_disk(mFileStream, 0);
+    mFAT.init(mBS.mFatEntryCount);
+    mFAT.init_from_disk(mFileStream, mBS.mFatStartAddress);
+    mRootDir.init_from_disk(mFileStream, mBS.mDataStartAddress);
 
     return true;
 }

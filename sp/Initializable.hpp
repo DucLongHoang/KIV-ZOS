@@ -4,5 +4,5 @@
 
 class InitializableFromDisk {
     public:
-        virtual bool init_from_disk(const std::string &str) = 0;
+        virtual void init_from_disk(std::fstream& stream, unsigned int pos) = 0;
 };

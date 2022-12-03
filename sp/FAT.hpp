@@ -7,6 +7,7 @@
 #include <filesystem>
 
 #include "IFilesystem.hpp"
+#include "Initializable.hpp"
 #include "utils.hpp"
 
 using namespace std::string_literals;
@@ -14,7 +15,7 @@ using namespace std::string_literals;
 /**
  * Class BootSector
  */
-class BootSector {
+class BootSector : public InitializableFromDisk {
     public:
         std::string mSignature;             // author login
         unsigned int mDiskSize;             // total size of FS
@@ -30,13 +31,13 @@ class BootSector {
         ~BootSector() = default;
 
         void init(unsigned int diskSize);
-        void init(const std::string &str);
+        void init_from_disk(std::fstream& stream, unsigned int pos) override;
 };
 
 /**
  * Class FAT - represents a File Allocation Table
  */
-class FAT {
+class FAT : public InitializableFromDisk {
     public:
         static constexpr int FLAG_UNUSED = -1;
         static constexpr int FLAG_FILE_END = -2;
@@ -49,13 +50,16 @@ class FAT {
         unsigned int SIZE = table.size() * sizeof(unsigned int);
 
         void init(unsigned int fatEntryCount);
-        void init(const std::string &str);
+        void init_from_disk(std::fstream& stream, unsigned int pos) override;
+
+        void write_FAT(unsigned int startAddress, int idxOrFlag);
+        unsigned int find_free_index();
 };
 
 /**
  * Class DirectoryItem - can be file or directory
  */
-class DirectoryItem {
+class DirectoryItem : public InitializableFromDisk {
     public:
         std::string mFilename;          // 7 + 1 + 3 + \0
         bool mIsFile;                   // true -> is file, false -> is dir
@@ -66,7 +70,7 @@ class DirectoryItem {
         DirectoryItem() = default;
         ~DirectoryItem() = default;
         void init(const std::string& filename, bool isFile, int size, int startCLuster);
-        void init(const std::string &str);
+        void init_from_disk(std::fstream& stream, unsigned int pos) override;
 };
 
 /**
@@ -80,7 +84,6 @@ class FAT_Filesystem : public IFilesystem {
         BootSector mBS;
         FAT mFAT;
         DirectoryItem mRootDir;
-//        ClusterArea mCA;
 
     public:
         FAT_Filesystem(std::string name) : mDiskName(std::move(name)) {}
