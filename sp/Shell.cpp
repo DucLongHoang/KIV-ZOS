@@ -81,8 +81,18 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
     }
 }
 
+bool Shell::check_argc(const std::vector<std::string>& args, unsigned int needed) {
+    if (args.size() != needed) {
+        std::cout << "Incorrect number of arguments!" << std::endl;
+        std::cout << "Needed: " << needed << std::endl;
+        std::cout << "Found:  " << args.size() << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
 bool Shell::cp(const std::vector<std::string>& args) {
-    mFilesystem->fs_write(args);
+//    mFilesystem->fs_write(args);
     return true;
 }
 
@@ -113,8 +123,22 @@ bool Shell::ls(const std::vector<std::string>& args) {
 }
 
 bool Shell::cat(const std::vector<std::string>& args) {
+    if (check_argc(args, 1) == EXIT_FAILURE)
+        return EXIT_FAILURE;
 
-    return false;
+    std::vector<std::any>castedArgs{args.front()};
+    // file descriptor is cluster number
+    unsigned int fd = mFilesystem->fs_open(castedArgs);
+    castedArgs.clear();
+
+    // file descriptor, string buffer and size
+    castedArgs.emplace_back(fd);
+    castedArgs.emplace_back(std::string{});
+    castedArgs.emplace_back(/*some buffer size*/);
+    mFilesystem->fs_read(castedArgs);
+
+
+    return EXIT_SUCCESS;
 }
 
 bool Shell::cd(const std::vector<std::string> &args) {
@@ -123,10 +147,8 @@ bool Shell::cd(const std::vector<std::string> &args) {
 }
 
 bool Shell::pwd(const std::vector<std::string>& args) {
-    if (!args.empty()) {
-        std::cout << "Incorrect number of arguments!" << std::endl;
+    if (check_argc(args, 0) == EXIT_FAILURE)
         return EXIT_FAILURE;
-    }
 
     std::cout << "Current working directory: " << mCWD << std::endl;
     return EXIT_SUCCESS;
@@ -153,19 +175,16 @@ bool Shell::load(const std::vector<std::string>& args) {
 }
 
 bool Shell::format(const std::vector<std::string>& args) {
-    if (args.size() != 2) {
-        std::cout << "Incorrect number of arguments!" << std::endl;
+    if (check_argc(args, 2) == EXIT_FAILURE)
         return EXIT_FAILURE;
-    }
 
-    if (std::filesystem::exists(mFsName)) {
-        std::cout << "Formatting existing disk..." << std::endl;
-    }
-    else {
-        std::cout << "Creating new disk..." << std::endl;
-    }
+    std::string msg = (std::filesystem::exists(mFsName)) ?
+            "Formatting existing disk..." : "Creating new disk...";
+    std::cout << msg << std::endl;
     mFilesystem = std::make_unique<FAT_Filesystem>(mFsName);
-    return mFilesystem->init_fs(args);
+
+    std::vector<std::any> castedArgs(args.begin(), args.end());
+    return mFilesystem->init_fs(castedArgs);
 }
 
 bool Shell::xcp(const std::vector<std::string>& args) {
@@ -175,10 +194,11 @@ bool Shell::xcp(const std::vector<std::string>& args) {
 
 bool Shell::exit(const std::vector<std::string>& args) {
     std::exit(EXIT_SUCCESS);
-    return false;
+    return EXIT_SUCCESS;
 }
 
 bool Shell::unknown(const std::vector<std::string> &args) {
     std::cout << "Unknown command" << std::endl;
     return false;
 }
+

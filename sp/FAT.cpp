@@ -132,6 +132,8 @@ unsigned int FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
     unsigned int size;
     unsigned int startCluster = mFAT.find_free_index();
 
+    unsigned int address = mBS.mDataStartAddress + (startCluster * CLUSTER_SIZE);
+    mFAT.write_FAT(startCluster, FAT::FLAG_FILE_END);
 
     return false;
 }
