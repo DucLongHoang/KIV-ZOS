@@ -13,7 +13,7 @@ std::string string_from_stream(std::fstream &stream, unsigned int streamSize) {
     return std::string{temp, streamSize};
 }
 
-std::string zero_padded_string(const std::string& str, int size) {
+std::string zero_padded_string(const std::string& str, unsigned int size) {
     std::ostringstream stream;
     stream << std::left << std::setw(size) << std::setfill('\0') << str ;
     return stream.str();

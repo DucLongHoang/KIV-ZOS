@@ -37,6 +37,6 @@ void string_to_stream(std::fstream &stream, std::string &string);
 
 std::string string_from_stream(std::fstream &stream, unsigned int streamSize);
 
-std::string zero_padded_string(const std::string &str, int size);
+std::string zero_padded_string(const std::string &str, unsigned int size);
 
 bool is_white_space(const std::string &str);
