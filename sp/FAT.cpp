@@ -61,6 +61,8 @@ void DirectoryItem::init_from_disk(std::fstream& stream, unsigned int pos) {
 }
 
 bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
+
+
     unsigned int multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
     unsigned int diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
 
@@ -124,23 +126,30 @@ bool FAT_Filesystem::mount_fs(const std::vector<std::any>& args) {
     return true;
 }
 
-bool FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
+unsigned int FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
+    std::string filename{any_cast<std::string>(args[0])};
+    bool isFile{any_cast<bool>(args[1])};
+    unsigned int size;
+    unsigned int startCluster = mFAT.find_free_index();
 
 
     return false;
 }
 
-bool FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
+unsigned int FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
 
     return false;
 }
 
-bool FAT_Filesystem::fs_read(const std::vector<std::any>& args) {
+unsigned int FAT_Filesystem::fs_read(const std::vector<std::any>& args) {
 
     return false;
 }
 
-bool FAT_Filesystem::fs_write(const std::vector<std::any>& args) {
+unsigned int FAT_Filesystem::fs_write(const std::vector<std::any>& args) {
+
+
+
     std::cout << "Writing: ";
 
     std::for_each(args.begin(), args.end(), [this, args](const std::any& a) {
