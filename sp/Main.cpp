@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
     }
 
     std::string fsName(argv[1]);
-    std::unique_ptr<Shell> shell = std::make_unique<Shell>(fsName);
+    auto shell = std::make_unique<Shell>(fsName);
     shell->run();
 
 	return EXIT_SUCCESS;

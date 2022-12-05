@@ -1,17 +1,17 @@
 #include <algorithm>
 #include "FAT.hpp"
 
-void BootSector::init(unsigned int diskSize) {
+void BootSector::init(uint diskSize) {
     mSignature = zero_padded_string("duclong"s, 9);
     mDiskSize = diskSize;
     mClusterSize = CLUSTER_SIZE;
     mClusterCount = (mDiskSize - BootSector::SIZE) / (mClusterSize * 4);
     mFatEntryCount = mClusterCount;
     mFatStartAddress = BootSector::SIZE;     // offset
-    mDataStartAddress = BootSector::SIZE + mFatEntryCount * sizeof(unsigned int);
+    mDataStartAddress = BootSector::SIZE + mFatEntryCount * sizeof(uint);
 }
 
-void BootSector::init_from_disk(std::fstream& stream, unsigned int pos) {
+void BootSector::init_from_disk(std::fstream& stream, uint pos) {
     stream.seekg(pos);
     mSignature = string_from_stream(stream, 9);
     read_from_stream(stream, mDiskSize);
@@ -22,37 +22,37 @@ void BootSector::init_from_disk(std::fstream& stream, unsigned int pos) {
     read_from_stream(stream, mDataStartAddress);
 }
 
-void FAT::init(unsigned int fatEntryCount) {
+void FAT::init(uint fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
-    SIZE = table.size() * sizeof(unsigned int);
+    SIZE = table.size() * sizeof(uint);
 }
 
-void FAT::init_from_disk(std::fstream& stream, unsigned int pos) {
+void FAT::init_from_disk(std::fstream& stream, uint pos) {
     stream.seekg(pos);
     for (int& fatEntry : table) {
         read_from_stream(stream, fatEntry);
     }
 }
 
-void FAT::write_FAT(unsigned int idx, int idxOrFlag) {
+void FAT::write_FAT(uint idx, int idxOrFlag) {
     table[idx] = idxOrFlag;
 }
 
-unsigned int FAT::find_free_index() {
+uint FAT::find_free_index() {
     for (size_t i = 0; i < table.size(); ++i) {
         if (table[i] == FAT::FLAG_UNUSED) return i;
     }
     return FAT::FLAG_NO_FREE_SPACE;
 }
 
-void DirectoryItem::init(const std::string& filename, bool isFile, int size, int startCLuster) {
+void DirectoryItem::init(const std::string& filename, bool isFile, uint size, uint startCLuster) {
     mFilename = zero_padded_string(filename, 12);
     mIsFile = isFile;
     mSize = size;
     mStartCluster = startCLuster;
 }
 
-void DirectoryItem::init_from_disk(std::fstream& stream, unsigned int pos) {
+void DirectoryItem::init_from_disk(std::fstream& stream, uint pos) {
     stream.seekg(pos);
     mFilename = string_from_stream(stream, 12);
     read_from_stream(stream, mIsFile);
@@ -61,10 +61,8 @@ void DirectoryItem::init_from_disk(std::fstream& stream, unsigned int pos) {
 }
 
 bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
-
-
-    unsigned int multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
-    unsigned int diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
+    auto multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
+    auto diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
 
     auto mode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
     mFileStream.open(mDiskName, mode);
@@ -126,30 +124,32 @@ bool FAT_Filesystem::mount_fs(const std::vector<std::any>& args) {
     return true;
 }
 
-unsigned int FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
-    std::string filename{any_cast<std::string>(args[0])};
-    bool isFile{any_cast<bool>(args[1])};
-    unsigned int size;
-    unsigned int startCluster = mFAT.find_free_index();
+uint FAT_Filesystem::fs_creat(const std::vector<std::any>& args) {
+    auto filename{any_cast<std::string>(args[0])};
+    auto isFile{any_cast<bool>(args[1])};
+    uint size;
+    uint startCluster = mFAT.find_free_index();
 
-    unsigned int address = mBS.mDataStartAddress + (startCluster * CLUSTER_SIZE);
+    uint address = mBS.mDataStartAddress + (startCluster * CLUSTER_SIZE);
     mFAT.write_FAT(startCluster, FAT::FLAG_FILE_END);
 
     return false;
 }
 
-unsigned int FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
+uint FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
 
     return false;
 }
 
-unsigned int FAT_Filesystem::fs_read(const std::vector<std::any>& args) {
+uint FAT_Filesystem::fs_read(const std::vector<std::any>& args) {
 
     return false;
 }
 
-unsigned int FAT_Filesystem::fs_write(const std::vector<std::any>& args) {
-
+uint FAT_Filesystem::fs_write(const std::vector<std::any>& args) {
+    auto fd = any_cast<uint>(args[0]);
+    auto buffer = any_cast<std::string>(args[1]);
+    auto bufferSize = any_cast<uint>(args[2]);
 
 
     std::cout << "Writing: ";

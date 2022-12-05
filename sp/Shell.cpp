@@ -22,7 +22,7 @@ void Shell::mount_fs(const std::string &fsName) {
     mFilesystem->mount_fs(tmp);
 }
 
-void Shell::run() {
+[[noreturn]] void Shell::run() {
     std::string input;
     while (true) {
         std::cout << mCWD << ">";
@@ -48,11 +48,9 @@ void Shell::process_input(const std::string &input) {
 
     // find CMD by string
     auto mapCmd = [this](const std::string& cmdStr) -> Shell::CMD {
-        auto itr = cmdMap.find(cmdStr);
-        if (itr == cmdMap.end() ){
-            return CMD::UNKNOWN;
-        }
-        return itr->second;
+        if (cmdMap.contains(cmdStr))
+            return cmdMap.find(cmdStr)->second;
+        return CMD::UNKNOWN;
     };
 
     auto CMD = mapCmd(cmd);
@@ -81,7 +79,7 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
     }
 }
 
-bool Shell::check_argc(const std::vector<std::string>& args, unsigned int needed) {
+bool Shell::check_argc(const std::vector<std::string>& args, uint needed) {
     if (args.size() != needed) {
         std::cout << "Incorrect number of arguments!" << std::endl;
         std::cout << "Needed: " << needed << std::endl;
@@ -128,7 +126,7 @@ bool Shell::cat(const std::vector<std::string>& args) {
 
     std::vector<std::any>castedArgs{args.front()};
     // file descriptor is cluster number
-    unsigned int fd = mFilesystem->fs_open(castedArgs);
+    auto fd = mFilesystem->fs_open(castedArgs);
     castedArgs.clear();
 
     // file descriptor, string buffer and size
@@ -137,7 +135,7 @@ bool Shell::cat(const std::vector<std::string>& args) {
     castedArgs.emplace_back(/*some buffer size*/);
     mFilesystem->fs_read(castedArgs);
 
-
+    std::cout << any_cast<std::string>(castedArgs[1]) << std::endl;
     return EXIT_SUCCESS;
 }
 

@@ -26,10 +26,11 @@ class Shell {
 		~Shell() = default;
 
         void mount_fs(const std::string& fsName);
-		void run();
+
+        [[noreturn]] void run();
 		void process_input(const std::string& input);
 		void execute_cmd(const CMD& CMD, const std::vector<std::string>& args);
-        bool check_argc(const std::vector<std::string>& args, unsigned int needed);
+        bool check_argc(const std::vector<std::string>& args, uint needed);
 
 		// shell commands
 		bool cp(const std::vector<std::string>& args);
