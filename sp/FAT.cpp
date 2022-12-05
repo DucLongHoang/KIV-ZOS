@@ -107,6 +107,23 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
     write_to_stream(mFileStream, mRootDir.mSize);
     write_to_stream(mFileStream, mRootDir.mStartCluster);
 
+    DirectoryItem di;
+    std::string diContent{"This is content of test.txt. Do what you want with this information though."};
+    di.init("test.txt", true, diContent.size(), 1);
+    mFAT.write_FAT(1, FAT::FLAG_FILE_END);
+
+    // write file as file of root dir
+//    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE);
+    string_to_stream(mFileStream, di.mFilename);
+    write_to_stream(mFileStream, di.mIsFile);
+    write_to_stream(mFileStream, di.mSize);
+    write_to_stream(mFileStream, di.mStartCluster);
+
+    // write file to second cluster
+    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE);
+    string_to_stream(mFileStream, diContent);
+
+
     mFileStream.flush();
     return true;
 }
