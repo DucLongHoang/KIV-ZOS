@@ -5,10 +5,10 @@ void BootSector::init(uint diskSize) {
     mSignature = zero_padded_string("duclong"s, 9);
     mDiskSize = diskSize;
     mClusterSize = CLUSTER_SIZE;
-    mClusterCount = (mDiskSize - BootSector::SIZE) / (mClusterSize * 4);
+    mClusterCount = (mDiskSize - BootSector::size()) / (mClusterSize * 4);
     mFatEntryCount = mClusterCount;
-    mFatStartAddress = BootSector::SIZE;     // offset
-    mDataStartAddress = BootSector::SIZE + mFatEntryCount * sizeof(uint);
+    mFatStartAddress = BootSector::size();     // offset
+    mDataStartAddress = BootSector::size() + mFatEntryCount * sizeof(uint);
 }
 
 void BootSector::init_from_disk(std::fstream& stream, uint pos) {
@@ -24,7 +24,6 @@ void BootSector::init_from_disk(std::fstream& stream, uint pos) {
 
 void FAT::init(uint fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
-    SIZE = table.size() * sizeof(uint);
 }
 
 void FAT::init_from_disk(std::fstream& stream, uint pos) {

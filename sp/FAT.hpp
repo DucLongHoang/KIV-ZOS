@@ -25,8 +25,11 @@ class BootSector : public InitializableFromDisk {
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
 
-        uint SIZE = sum_sizeof(mSignature, mDiskSize, mClusterSize, mClusterCount,
-                                       mFatEntryCount, mFatStartAddress, mDataStartAddress);
+        uint size() const {
+            return sum_sizeof(mSignature, mDiskSize, mClusterSize, mClusterCount,
+                              mFatEntryCount, mFatStartAddress, mDataStartAddress);
+        }
+
         BootSector() = default;
         ~BootSector() = default;
 
@@ -48,13 +51,23 @@ class FAT : public InitializableFromDisk {
         FAT() = default;
         ~FAT() = default;
 
-        uint SIZE;
+        uint size() const {
+            return table.size() * sizeof(uint);
+        }
 
         void init(uint fatEntryCount);
         void init_from_disk(std::fstream& stream, uint pos) override;
 
         void write_FAT(uint startAddress, int idxOrFlag);
         uint find_free_index();
+
+        [[nodiscard]] std::vector<int>::const_iterator begin() const {
+            return table.begin();
+        }
+
+        [[nodiscard]] std::vector<int>::const_iterator end() const {
+            return table.end();
+        }
 };
 
 /**
@@ -66,10 +79,14 @@ class DirectoryItem : public InitializableFromDisk {
         bool mIsFile;                   // true -> is file, false -> is dir
         uint mSize;             // file size
         uint mStartCluster;     // first cluster of file
-        uint SIZE = sum_sizeof(mFilename, mIsFile, mSize, mStartCluster);
+
+        uint size() const {
+            return sum_sizeof(mFilename, mIsFile, mSize, mStartCluster);
+        }
 
         DirectoryItem() = default;
         ~DirectoryItem() = default;
+
         void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
         void init_from_disk(std::fstream& stream, uint pos) override;
 };
@@ -82,9 +99,9 @@ class FAT_Filesystem : public IFilesystem {
         std::fstream mFileStream;
         std::string mDiskName;
 
-        BootSector mBS;
-        FAT mFAT;
-        DirectoryItem mRootDir;
+        std::unique_ptr<BootSector> mBS;
+        std::unique_ptr<FAT> mFAT;
+        std::unique_ptr<DirectoryItem> mRootDir;
 
     public:
         FAT_Filesystem(std::string name) : mDiskName(std::move(name)) {}
