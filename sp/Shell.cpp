@@ -116,8 +116,25 @@ bool Shell::rmdir(const std::vector<std::string>& args) {
 }
 
 bool Shell::ls(const std::vector<std::string>& args) {
+    if (check_argc(args, 0) == EXIT_FAILURE && check_argc(args, 1) == EXIT_FAILURE) {
+        return EXIT_FAILURE;
+    }
+    std::vector<std::any> castedArgs(args.begin(), args.end());
+    uint fd = mFilesystem->fs_open(castedArgs);
+    std::vector<char> buffer(CLUSTER_SIZE);
 
-    return false;
+    castedArgs.emplace_back(fd);
+    castedArgs.emplace_back(buffer);
+    mFilesystem->fs_read(castedArgs);
+
+    auto buf = any_cast<std::vector<char>>(castedArgs[1]);
+    std::cout << "Listing dir: ";
+    for (const auto& i : buf) {
+        std::cout << i;
+    }
+    std::cout << std::endl;
+
+    return EXIT_SUCCESS;
 }
 
 bool Shell::cat(const std::vector<std::string>& args) {
@@ -135,7 +152,7 @@ bool Shell::cat(const std::vector<std::string>& args) {
     castedArgs.emplace_back(/*some buffer size*/);
     mFilesystem->fs_read(castedArgs);
 
-    std::cout << any_cast<std::string>(castedArgs[1]) << std::endl;
+    std::cout << "File content: \n" << any_cast<std::string>(castedArgs[1]) << std::endl;
     return EXIT_SUCCESS;
 }
 
