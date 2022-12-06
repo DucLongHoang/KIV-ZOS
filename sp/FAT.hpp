@@ -17,7 +17,7 @@ using namespace std::string_literals;
  */
 class BootSector : public InitializableFromDisk {
     public:
-        std::string mSignature;             // author login
+        std::string mSignature;     // author login
         uint mDiskSize;             // total size of FS
         uint mClusterSize;          // size of one cluster
         uint mClusterCount;         // total number of clusters
@@ -95,7 +95,7 @@ class FAT_Filesystem : public IFilesystem {
 
         uint fs_creat(const std::vector<std::any>& args) override;
         uint fs_open(const std::vector<std::any>& args) override;
-        uint fs_read(const std::vector<std::any>& args) override;
+        uint fs_read(std::vector<std::any>& args) override;
         uint fs_write(const std::vector<std::any>& args) override;
 //        uint fs_lseek(const std::vector<std::any>& args) = 0;
         bool fs_close(const std::vector<std::any>& args) override;
