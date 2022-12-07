@@ -1,9 +1,14 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <fstream>
+#include <concepts>
 
 using uint = unsigned int;
+
+constexpr uint FILENAME_LEN = 12;
+constexpr uint SIGNATURE_LEN = 9;
 
 // converting to bytes
 constexpr uint operator"" _B(unsigned long long int b) {
@@ -34,6 +39,10 @@ void read_from_stream(std::fstream &stream, T &data) {
     stream.read(reinterpret_cast<char *>(&data), streamSize);
 }
 
+template<typename T>
+concept WritableToStream = requires(T t, std::fstream& stream) {
+    t.write_to_stream(stream);
+};
 
 void string_to_stream(std::fstream &stream, const std::string &string);
 

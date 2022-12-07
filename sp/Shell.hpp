@@ -30,7 +30,7 @@ class Shell {
         [[noreturn]] void run();
 		void process_input(const std::string& input);
 		void execute_cmd(const CMD& CMD, const std::vector<std::string>& args);
-        bool check_argc(const std::vector<std::string>& args, uint needed);
+        bool check_argc(const std::vector<std::string>& args, uint needed) const;
 
 		// shell commands
 		bool cp(const std::vector<std::string>& args);

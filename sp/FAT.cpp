@@ -1,3 +1,4 @@
+#include <ranges>
 #include <algorithm>
 #include "FAT.hpp"
 
@@ -37,7 +38,7 @@ void FAT::write_FAT(uint idx, int idxOrFlag) {
     table[idx] = idxOrFlag;
 }
 
-uint FAT::find_free_index() {
+uint FAT::find_free_index() const {
     // indexed range based for loop
     for (size_t idx = 0; const auto& it : *this) {
         if (it == FAT::FLAG_UNUSED) return idx;
@@ -61,9 +62,50 @@ void DirectoryItem::init_from_disk(std::fstream& stream, uint pos) {
     read_from_stream(stream, mStartCluster);
 }
 
+void FAT_Filesystem::wipe_clusters() {
+    // wipe all clusters
+    std::array<char, CLUSTER_SIZE> cluster{};
+    cluster.fill('\0');
+
+    mFileStream.seekp(mBS->mDataStartAddress);
+    for ([[maybe_unused]] const auto& i : std::ranges::iota_view{0u, mBS->mClusterCount}) {
+        write_to_stream(mFileStream, cluster);
+    }
+}
+
+void FAT_Filesystem::write_boot_sector() {
+    string_to_stream(mFileStream, mBS->mSignature);
+    write_to_stream(mFileStream, mBS->mDiskSize);
+    write_to_stream(mFileStream, mBS->mClusterSize);
+    write_to_stream(mFileStream, mBS->mClusterCount);
+    write_to_stream(mFileStream, mBS->mFatEntryCount);
+    write_to_stream(mFileStream, mBS->mFatStartAddress);
+    write_to_stream(mFileStream, mBS->mDataStartAddress);
+}
+
+void FAT_Filesystem::write_FAT() {
+    for (auto fatEntry : *mFAT) {
+        ::write_to_stream(mFileStream, fatEntry);
+    }
+}
+
+void FAT_Filesystem::write_root_dir() {
+    string_to_stream(mFileStream, mRootDir->mFilename);
+    write_to_stream(mFileStream, mRootDir->mIsFile);
+    write_to_stream(mFileStream, mRootDir->mSize);
+    write_to_stream(mFileStream, mRootDir->mStartCluster);
+}
+
+void FAT_Filesystem::write_directory_item(DirectoryItem& dirItem) {
+    string_to_stream(mFileStream, dirItem.mFilename);
+    write_to_stream(mFileStream, dirItem.mIsFile);
+    write_to_stream(mFileStream, dirItem.mSize);
+    write_to_stream(mFileStream, dirItem.mStartCluster);
+}
+
 bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
-    auto multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
-    auto diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
+    uint multiplier = (any_cast<std::string>(args.back()) == "MB"s) ? 1_MB : 1_KB;
+    uint diskSize = std::stoi(any_cast<std::string>(args.front())) * multiplier;
 
     auto mode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
     mFileStream.open(mDiskName, mode);
@@ -93,45 +135,15 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
         exit(EXIT_FAILURE);
     }
 
-    // write boot sector
-    string_to_stream(mFileStream, mBS->mSignature);
-    write_to_stream(mFileStream, mBS->mDiskSize);
-    write_to_stream(mFileStream, mBS->mClusterSize);
-    write_to_stream(mFileStream, mBS->mClusterCount);
-    write_to_stream(mFileStream, mBS->mFatEntryCount);
-    write_to_stream(mFileStream, mBS->mFatStartAddress);
-    write_to_stream(mFileStream, mBS->mDataStartAddress);
-
-    // write FAT
+    write_boot_sector();
     mFileStream.seekp(mBS->mFatStartAddress);
-    for (auto fatEntry : *mFAT) {
-        write_to_stream(mFileStream, fatEntry);
-    }
-
-    // wipe all clusters
-    std::array<char, CLUSTER_SIZE> cluster{};
-    cluster.fill('\0');
+    write_FAT();
+    wipe_clusters();
     mFileStream.seekp(mBS->mDataStartAddress);
-    for (size_t i = 0; i < mBS->mClusterCount; ++i) {
-        write_to_stream(mFileStream, cluster);
-    }
-
-    // write root dir to first cluster
-    uint ad1 = mBS->mDataStartAddress;
-    mFileStream.seekp(mBS->mDataStartAddress);
-    string_to_stream(mFileStream, mRootDir->mFilename);
-    write_to_stream(mFileStream, mRootDir->mIsFile);
-    write_to_stream(mFileStream, mRootDir->mSize);
-    write_to_stream(mFileStream, mRootDir->mStartCluster);
-
-    // write file as file of root dir
-    string_to_stream(mFileStream, di.mFilename);
-    write_to_stream(mFileStream, di.mIsFile);
-    write_to_stream(mFileStream, di.mSize);
-    write_to_stream(mFileStream, di.mStartCluster);
+    write_root_dir();
+    write_directory_item(di);
 
     // write file to second cluster
-    uint ad2 = mBS->mDataStartAddress + CLUSTER_SIZE * startCluster;
     mFileStream.seekp(mBS->mDataStartAddress + CLUSTER_SIZE * startCluster);
     string_to_stream(mFileStream, diContent);
 
@@ -181,7 +193,8 @@ uint FAT_Filesystem::fs_open(const std::vector<std::any>& args) {
 
 uint FAT_Filesystem::fs_read(std::vector<std::any>& args) {
     auto cluster = any_cast<uint>(args[0]);
-    auto buffer = any_cast<std::vector<char>>(args[1]);
+    auto& buffer = any_cast<std::vector<char>&>(args[1]);
+    uint size = buffer.size();
 
     if (mFAT->table[cluster] > 0) {
         // recursion
@@ -189,24 +202,9 @@ uint FAT_Filesystem::fs_read(std::vector<std::any>& args) {
     }
 
     if (mFAT->table[cluster] == FAT::FLAG_FILE_END) {
-        uint ad1 = mBS->mDataStartAddress + (CLUSTER_SIZE * cluster);
-//        mFileStream.seekg(mBS->mDataStartAddress + (CLUSTER_SIZE * cluster) + mRootDir->size());
-//        read_from_stream(mFileStream, buffer);
-        DirectoryItem di;
-        di.init_from_disk(mFileStream, ad1);
-
-        DirectoryItem di2;
-        di2.mFilename = string_from_stream(mFileStream, 12);
-        read_from_stream(mFileStream, di2.mIsFile);
-        read_from_stream(mFileStream, di2.mSize);
-        read_from_stream(mFileStream, di2.mStartCluster);
-
-        mFileStream.seekp(ad1);
-        mFileStream.read(buffer.data(), CLUSTER_SIZE);
-
-        mFileStream.seekp(ad1 + CLUSTER_SIZE);
-        mFileStream.read(buffer.data(), CLUSTER_SIZE);
-
+        uint address = mBS->mDataStartAddress + (CLUSTER_SIZE * cluster);
+        mFileStream.seekp(address);
+        mFileStream.read(buffer.data(), size);
     }
 
     return buffer.size();
@@ -234,4 +232,3 @@ bool FAT_Filesystem::fs_close(const std::vector<std::any>& args) {
 
     return false;
 }
-

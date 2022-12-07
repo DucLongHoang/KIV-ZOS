@@ -79,7 +79,7 @@ void Shell::execute_cmd(const CMD& CMD, const std::vector<std::string>& args) {
     }
 }
 
-bool Shell::check_argc(const std::vector<std::string>& args, uint needed) {
+bool Shell::check_argc(const std::vector<std::string>& args, uint needed) const {
     if (args.size() != needed) {
         std::cout << "Incorrect number of arguments!" << std::endl;
         std::cout << "Needed: " << needed << std::endl;
@@ -121,16 +121,17 @@ bool Shell::ls(const std::vector<std::string>& args) {
     }
     std::vector<std::any> castedArgs(args.begin(), args.end());
     uint fd = mFilesystem->fs_open(castedArgs);
-    std::vector<char> buffer(CLUSTER_SIZE);
+    std::vector<char> tmpBuf(CLUSTER_SIZE);
 
     castedArgs.emplace_back(fd);
-    castedArgs.emplace_back(buffer);
+    castedArgs.emplace_back(std::move(tmpBuf));
     mFilesystem->fs_read(castedArgs);
 
-    auto buf = any_cast<std::vector<char>>(castedArgs[1]);
+    auto& buffer = any_cast<std::vector<char>&>(castedArgs[1]);
     std::cout << "Listing dir: ";
-    for (const auto& i : buf) {
-        std::cout << i;
+    for (const auto& i : buffer) {
+//        buffer.
+//        std::cout << i;
     }
     std::cout << std::endl;
 
