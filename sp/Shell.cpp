@@ -1,4 +1,4 @@
-#include <optional>
+#include <ranges>
 
 #include "Shell.hpp"
 
@@ -128,10 +128,29 @@ bool Shell::ls(const std::vector<std::string>& args) {
     mFilesystem->fs_read(castedArgs);
 
     auto& buffer = any_cast<std::vector<char>&>(castedArgs[1]);
-    std::cout << "Listing dir: ";
-    for (const auto& i : buffer) {
-//        buffer.
-//        std::cout << i;
+    std::cout << "Listing directory content: ";
+
+    std::stringstream ss;
+    for (auto i : buffer) {
+        write_to_stream(ss, i);
+    }
+
+    std::vector<std::string> dirItems{};
+    DirectoryItem di;
+    while(true) {
+        di.mFilename = string_from_stream(ss, FILENAME_LEN);
+        read_from_stream(ss, di.mIsFile);
+        read_from_stream(ss, di.mSize);
+        read_from_stream(ss, di.mStartCluster);
+        std::string empty{};
+        empty.resize(FILENAME_LEN, '\0');
+        if (di.mFilename == empty) break;
+        else dirItems.emplace_back(di.mFilename);
+    }
+
+    auto filesInFolder = dirItems | std::views::drop(1);
+    for (const auto& str : filesInFolder) {
+        std::cout << str.c_str() << "\t";
     }
     std::cout << std::endl;
 
