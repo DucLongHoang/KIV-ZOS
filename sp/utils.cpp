@@ -2,12 +2,12 @@
 #include <sstream>
 #include "utils.hpp"
 
-void string_to_stream(std::fstream &stream, const std::string &string) {
+void string_to_stream(std::iostream &stream, const std::string &string) {
     auto str = zero_padded_string(string, string.size());
     stream.write(str.c_str(), string.size());
 }
 
-std::string string_from_stream(std::fstream &stream, uint streamSize) {
+std::string string_from_stream(std::iostream &stream, uint streamSize) {
     char temp[streamSize];
     stream.read(temp, streamSize);
     return std::string{temp, streamSize};

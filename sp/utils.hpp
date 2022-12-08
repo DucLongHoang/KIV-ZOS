@@ -7,7 +7,7 @@
 
 using uint = unsigned int;
 
-constexpr uint FILENAME_LEN = 12;
+constexpr uint FILENAME_LEN = 13;
 constexpr uint SIGNATURE_LEN = 9;
 
 // converting to bytes
@@ -28,25 +28,20 @@ constexpr uint sum_sizeof(Targs ... targs) {
 }
 
 template<typename T>
-void write_to_stream(std::fstream &stream, T &data) {
+void write_to_stream(std::iostream &stream, T &data) {
     uint streamSize = sizeof(T);
     stream.write(reinterpret_cast<char *>(&data), streamSize);
 }
 
 template<typename T>
-void read_from_stream(std::fstream &stream, T &data) {
+void read_from_stream(std::iostream &stream, T &data) {
     uint streamSize = sizeof(T);
     stream.read(reinterpret_cast<char *>(&data), streamSize);
 }
 
-template<typename T>
-concept WritableToStream = requires(T t, std::fstream& stream) {
-    t.write_to_stream(stream);
-};
+void string_to_stream(std::iostream &stream, const std::string &string);
 
-void string_to_stream(std::fstream &stream, const std::string &string);
-
-std::string string_from_stream(std::fstream &stream, uint streamSize);
+std::string string_from_stream(std::iostream &stream, uint streamSize);
 
 std::string zero_padded_string(const std::string &str, uint size);
 
