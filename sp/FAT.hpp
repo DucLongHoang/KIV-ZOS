@@ -99,9 +99,13 @@ class FAT_Filesystem : public IFilesystem {
 
     public:
         FAT_Filesystem(std::string name) : mDiskName(std::move(name)) {}
-        ~FAT_Filesystem() = default;
+        ~FAT_Filesystem() {
+            mFileStream.close();
+        };
 
         void wipe_clusters();
+        void init_test_files();
+
         void write_boot_sector();
         void write_FAT();
         void write_root_dir();

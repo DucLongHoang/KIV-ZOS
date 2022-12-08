@@ -3,7 +3,7 @@
 #include "FAT.hpp"
 
 void BootSector::init(uint diskSize) {
-    mSignature = zero_padded_string("duclong"s, 9);
+    mSignature = zero_padded_string("duclong"s, SIGNATURE_LEN);
     mDiskSize = diskSize;
     mClusterSize = CLUSTER_SIZE;
     mClusterCount = (mDiskSize - BootSector::size()) / (mClusterSize * 4);
@@ -14,7 +14,7 @@ void BootSector::init(uint diskSize) {
 
 void BootSector::init_from_disk(std::fstream& stream, uint pos) {
     stream.seekg(pos);
-    mSignature = string_from_stream(stream, 9);
+    mSignature = string_from_stream(stream, SIGNATURE_LEN);
     read_from_stream(stream, mDiskSize);
     read_from_stream(stream, mClusterSize);
     read_from_stream(stream, mClusterCount);
@@ -48,7 +48,7 @@ uint FAT::find_free_index() const {
 }
 
 void DirectoryItem::init(const std::string& filename, bool isFile, uint size, uint startCLuster) {
-    mFilename = zero_padded_string(filename, 12);
+    mFilename = zero_padded_string(filename, FILENAME_LEN);
     mIsFile = isFile;
     mSize = size;
     mStartCluster = startCLuster;
@@ -56,7 +56,7 @@ void DirectoryItem::init(const std::string& filename, bool isFile, uint size, ui
 
 void DirectoryItem::init_from_disk(std::fstream& stream, uint pos) {
     stream.seekg(pos);
-    mFilename = string_from_stream(stream, 12);
+    mFilename = string_from_stream(stream, FILENAME_LEN);
     read_from_stream(stream, mIsFile);
     read_from_stream(stream, mSize);
     read_from_stream(stream, mStartCluster);
@@ -73,6 +73,56 @@ void FAT_Filesystem::wipe_clusters() {
     }
 }
 
+void FAT_Filesystem::init_test_files() {
+    // START: file 01
+    DirectoryItem di;
+    std::string diContent{"This is content of test.txt. Do what you want with this information."};
+    uint startCluster = mFAT->find_free_index();
+    di.init("test.txt", true, diContent.size(), startCluster);
+
+    mFAT->write_FAT(startCluster, FAT::FLAG_FILE_END);
+    mRootDir->mSize += di.size();
+
+    // write file to cluster
+
+    // START: file 02
+    DirectoryItem di2;
+    startCluster = mFAT->find_free_index();
+    di2.init("home", false, 0, startCluster);
+
+    mFAT->write_FAT(startCluster, FAT::FLAG_FILE_END);
+    mRootDir->mSize += di2.size();
+
+    // START: file 03
+    DirectoryItem di3;
+    std::string diContent3{"As expected, the random sampling method has the worst result, "
+                "with several points overlapping and being too close to each other. "
+                "The Poisson disk sampling does not have a problem with overlapping points"
+                " but due to its random nature, the polygon is populated non-uniformly. "
+                "The k-means method yields the best results "
+                "with all points being distributed evenly across the whole polygon."};
+    startCluster = mFAT->find_free_index();
+    di3.init("thesis.txt", true, diContent3.size(), startCluster);
+
+    mFAT->write_FAT(startCluster, FAT::FLAG_FILE_END);
+    di2.mSize += di3.size();
+
+    // writing to disk
+    write_root_dir();
+
+    write_directory_item(di);
+    write_directory_item(di2);
+
+    mFileStream.seekp(mBS->mDataStartAddress + CLUSTER_SIZE * di.mStartCluster);
+    string_to_stream(mFileStream, diContent);
+
+    mFileStream.seekp(mBS->mDataStartAddress + CLUSTER_SIZE * di2.mStartCluster);
+    write_directory_item(di3);
+
+    mFileStream.seekp(mBS->mDataStartAddress + CLUSTER_SIZE * di3.mStartCluster);
+    string_to_stream(mFileStream, diContent3);
+}
+
 void FAT_Filesystem::write_boot_sector() {
     string_to_stream(mFileStream, mBS->mSignature);
     write_to_stream(mFileStream, mBS->mDiskSize);
@@ -85,7 +135,7 @@ void FAT_Filesystem::write_boot_sector() {
 
 void FAT_Filesystem::write_FAT() {
     for (auto fatEntry : *mFAT) {
-        ::write_to_stream(mFileStream, fatEntry);
+        write_to_stream(mFileStream, fatEntry);
     }
 }
 
@@ -121,15 +171,6 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
     this->mRootDir->init("/"s, false, 0, 0);
     mFAT->write_FAT(0, FAT::FLAG_FILE_END);
 
-    // init test file
-    DirectoryItem di;
-    std::string diContent{"This is content of test.txt. Do what you want with this information though."};
-    uint startCluster = mFAT->find_free_index();
-    di.init("test.txt", true, diContent.size(), startCluster);
-    mFAT->write_FAT(startCluster, FAT::FLAG_FILE_END);
-    // increase size by new item
-    mRootDir->mSize = di.size();
-
     if (!mFileStream) {
         std::cout << "Error opening file" << std::endl;
         exit(EXIT_FAILURE);
@@ -140,12 +181,9 @@ bool FAT_Filesystem::init_fs(const std::vector<std::any>& args) {
     write_FAT();
     wipe_clusters();
     mFileStream.seekp(mBS->mDataStartAddress);
-    write_root_dir();
-    write_directory_item(di);
+//    write_root_dir();
 
-    // write file to second cluster
-    mFileStream.seekp(mBS->mDataStartAddress + CLUSTER_SIZE * startCluster);
-    string_to_stream(mFileStream, diContent);
+    init_test_files();
 
     mFileStream.flush();
     return true;
