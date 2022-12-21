@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 #include <functional>
 #include <unordered_map>
@@ -15,7 +16,7 @@ class Shell {
         std::string mCWD;
         std::unique_ptr<Filesystem> mFilesystem;
         std::unordered_map<std::string, Handler> mHandlerMap;
-        std::unordered_map<std::string, uint> mArgsCountMap;
+        std::unordered_map<std::string, Range> mArgsCountMap;
 
         void fill_handlers();
         void fill_args_count();
