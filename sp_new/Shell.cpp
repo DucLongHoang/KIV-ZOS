@@ -1,8 +1,12 @@
 #include "Shell.hpp"
 
+#include <regex>
 #include <filesystem>
 
+static const std::regex REGEX_FORMAT("[1-9]+[0-9]*(kb|Kb|KB|mb|Mb|MB)");
+
 Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
+    fill_args_count();
     fill_handlers();
 
     if (std::filesystem::exists(fsName)) {
@@ -12,7 +16,7 @@ Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
     }
     else {
         std::cout << "File system: " << fsName << " not found" << std::endl;
-        std::cout << "Create new disk by using cmd: 'format [x] [y]'" << std::endl;
+        std::cout << "Create new disk by using cmd: 'format [x][y]'" << std::endl;
         std::cout << "[x] = positive integer" << std::endl;
         std::cout << "[y] = KB or MB (case sensitive)" << std::endl;
     }
@@ -59,9 +63,25 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["format"] = [this](Arguments& args) -> bool {
+        if (!std::regex_match(args[0], REGEX_FORMAT)) {
+            std::cout << "Invalid input: " << args[0] << std::endl;
+            std::cout << "Try e.g.     : " << "format 200KB" << std::endl;
+            return true;
+        }
+
+        std::string msg = std::filesystem::exists(mFsName) ?
+                          "Formatting existing disk..." : "Creating new disk...";
+        std::cout << msg << std::endl;
+        mFilesystem = std::make_unique<Filesystem>(mFsName);
+
+        mFilesystem->init_fs()
+
         return true;
     };
     mHandlerMap["xcp"] = [this](Arguments& args) -> bool {
+        return true;
+    };
+    mHandlerMap["short"] = [this](Arguments& args) -> bool {
         return true;
     };
     mHandlerMap["exit"] = [this](Arguments& args) -> bool {
@@ -76,24 +96,25 @@ void Shell::fill_handlers() {
 }
 
 void Shell::fill_args_count() {
-    mArgsCountMap["cp"] = 2;
-    mArgsCountMap["mv"] = 2;
-    mArgsCountMap["rm"] = 1;
-    mArgsCountMap["mkdir"] = 1;
-    mArgsCountMap["rmdir"] = 1;
-    mArgsCountMap["ls"] =
-    mArgsCountMap["cat"] =
-    mArgsCountMap["cd"] =
-    mArgsCountMap["pwd"] =
-    mArgsCountMap["info"] =
-    mArgsCountMap["incp"] =
-    mArgsCountMap["outcp"] =
-    mArgsCountMap["load"] =
-    mArgsCountMap["format"] =
-    mArgsCountMap["xcp"] =
-    mArgsCountMap["exit"] =
-    mArgsCountMap["quit"] =
-    mArgsCountMap["close"] =
+    mArgsCountMap["cp"] = Range{2, 2};
+    mArgsCountMap["mv"] = Range{2, 2};
+    mArgsCountMap["rm"] = Range{1, 1};
+    mArgsCountMap["mkdir"] = Range{1, 1};
+    mArgsCountMap["rmdir"] = Range{1, 1};
+    mArgsCountMap["ls"] = Range{0, 1};
+    mArgsCountMap["cat"] = Range{1, 1};
+    mArgsCountMap["cd"] = Range{1, 1};
+    mArgsCountMap["pwd"] = Range{0, 0};
+    mArgsCountMap["info"] = Range{1, 1};
+    mArgsCountMap["incp"] = Range{2, 2};
+    mArgsCountMap["outcp"] = Range{2, 2};
+    mArgsCountMap["load"] = Range{1, 1};
+    mArgsCountMap["format"] = Range{1, 1};
+    mArgsCountMap["xcp"] = Range{3, 3};
+    mArgsCountMap["short"] = Range{1, 1};
+    mArgsCountMap["exit"] = Range{0, 0};
+    mArgsCountMap["quit"] = Range{0, 0};
+    mArgsCountMap["close"] = Range{0, 0};
 }
 
 void Shell::run(std::istream& istream) {
