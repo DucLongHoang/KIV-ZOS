@@ -106,8 +106,15 @@ bool Shell::rm(const std::vector<std::string>& args) {
 }
 
 bool Shell::mkdir(const std::vector<std::string>& args) {
+    if (check_argc(args, 1) == EXIT_FAILURE) {
+        return EXIT_FAILURE;
+    }
 
-    return false;
+    auto cwd = mCWD;
+    auto dirName = args.front();
+
+
+    return EXIT_SUCCESS;
 }
 
 bool Shell::rmdir(const std::vector<std::string>& args) {

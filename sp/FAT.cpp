@@ -95,12 +95,7 @@ void FAT_Filesystem::init_test_files() {
 
     // START: file 03
     DirectoryItem di3;
-    std::string diContent3{"As expected, the random sampling method has the worst result, "
-                "with several points overlapping and being too close to each other. "
-                "The Poisson disk sampling does not have a problem with overlapping points"
-                " but due to its random nature, the polygon is populated non-uniformly. "
-                "The k-means method yields the best results "
-                "with all points being distributed evenly across the whole polygon."};
+    std::string diContent3{"As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon."};
     startCluster = mFAT->find_free_index();
     di3.init("thesis.txt", true, diContent3.size(), startCluster);
 
