@@ -50,6 +50,7 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["pwd"] = [this](Arguments& args) -> bool {
+        std::cout << mCWD << std::endl;
         return true;
     };
     mHandlerMap["info"] = [this](Arguments& args) -> bool {
@@ -66,7 +67,7 @@ void Shell::fill_handlers() {
     };
     mHandlerMap["format"] = [this](Arguments& args) -> bool {
         if (!std::regex_match(args[0], REGEX_FORMAT)) {
-            std::cout << "Invalid input: " << args[0] << std::endl;
+            std::cout << "Invalid input: " << "format" << args[0] << std::endl;
             std::cout << "Try e.g.     : " << "format 200KB" << std::endl;
             return true;
         }
@@ -135,11 +136,11 @@ void Shell::mount(const std::string &fsName) {
 }
 
 void Shell::run(std::istream& istream) {
-    Arguments args;
-    std::string command, opcode, arg;
     bool ret = true;
-
     while(ret) {
+        Arguments args;
+        std::string command, opcode, arg;
+
         // prompt
         std::cout << std::endl << "root@root:" << mCWD << std::endl;
         std::cout << "$";
@@ -170,7 +171,7 @@ void Shell::run(std::istream& istream) {
             std::cout << "Invalid command: " << opcode << std::endl;
             continue;
         }
-        if (check_args_count(opcode, args.size())) {
+        if (!check_args_count(opcode, args.size())) {
             std::cout << "Incorrect number of arguments" << std::endl;
             continue;
         }

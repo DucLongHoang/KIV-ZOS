@@ -15,7 +15,7 @@ class BootSector {
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
 
-        [[nodiscard]] uint size() const {
+        uint size() const {
             return mSignature.size() + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
                                                          mFatStartAddress, mDataStartAddress);
         }
@@ -25,6 +25,7 @@ class BootSector {
 
         void init(uint diskSize);
         void mount(std::fstream& stream, uint pos);
+        void write_to_disk(std::fstream& stream);
 };
 
 /**
@@ -46,6 +47,7 @@ class FAT {
 
         void init(uint fatEntryCount);
         void mount(std::fstream& stream, uint pos);
+        void write_to_disk(std::fstream& stream);
 
         void write_FAT(uint startAddress, int idxOrFlag);
         uint find_free_index() const;
@@ -73,6 +75,7 @@ public:
 
     void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
     void mount(std::fstream& stream, uint pos);
+    void write_to_disk(std::fstream& stream);
 };
 
 /**
@@ -95,10 +98,5 @@ public:
     void mount();
 
     void wipe_clusters();
-    void init_test_files();
-
-    void write_boot_sector();
-    void write_FAT();
-    void write_root_dir();
-    void write_directory_item(DirEntry& dirItem);
+    void init_default_files();
 };

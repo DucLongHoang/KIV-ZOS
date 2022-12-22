@@ -1,12 +1,13 @@
 #include <ranges>
 #include "Filesystem.hpp"
 
+// Start : BootSector
 void BootSector::init(uint diskSize) {
     mSignature = Utils::zero_padded_string("duclong", SIGNATURE_LEN);
     mDiskSize = diskSize;
     mClusterSize = CLUSTER_SIZE;
     mClusterCount = (mDiskSize - BootSector::size()) / (mClusterSize * 4);
-    mFatStartAddress = BootSector::size();     // offset
+    mFatStartAddress = BootSector::size();
     mDataStartAddress = BootSector::size() + mClusterCount * sizeof(uint);
 }
 
@@ -20,6 +21,14 @@ void BootSector::mount(std::fstream& stream, uint pos) {
     mDataStartAddress = Utils::read_from_stream<uint>(stream);
 }
 
+void BootSector::write_to_disk(std::fstream &stream) {
+    Utils::string_to_stream(stream, mSignature);
+    Utils::write_to_stream(stream, mDiskSize, mClusterSize,mClusterCount,
+                           mFatStartAddress, mDataStartAddress);
+}
+// End : BootSector
+
+// Start : FAT
 void FAT::init(uint fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
 }
@@ -44,6 +53,14 @@ uint FAT::find_free_index() const {
     return FAT::FLAG_NO_FREE_SPACE;
 }
 
+void FAT::write_to_disk(std::fstream &stream) {
+    for (auto fatEntry : *this) {
+        Utils::write_to_stream(stream, fatEntry);
+    }
+}
+// End : FAT
+
+// Start : DirEntry
 void DirEntry::init(const std::string& filename, bool isFile, uint size, uint startCLuster) {
     mFilename = Utils::zero_padded_string(filename, FILENAME_LEN);
     mIsFile = isFile;
@@ -58,6 +75,12 @@ void DirEntry::mount(std::fstream &stream, uint pos) {
     mSize = Utils::read_from_stream<uint>(stream);
     mStartCluster = Utils::read_from_stream<uint>(stream);
 }
+
+void DirEntry::write_to_disk(std::fstream &stream) {
+    Utils::string_to_stream(stream, mFilename);
+    Utils::write_to_stream(stream, mIsFile, mSize, mStartCluster);
+}
+// End : DirEntry
 
 void Filesystem::wipe_clusters() {
     // create empty cluster
@@ -92,13 +115,14 @@ void Filesystem::init(uint size) {
         exit(EXIT_FAILURE);
     }
 
-//    write_boot_sector();
+    mBS->write_to_disk(mFileStream);
+
     mFileStream.seekp(mBS->mFatStartAddress);
-//    write_FAT();
+    mFAT->write_to_disk(mFileStream);
+
     wipe_clusters();
     mFileStream.seekp(mBS->mDataStartAddress);
-//    write_root_dir();
-
+    mRootDir->write_to_disk(mFileStream);
 //    init_test_files();
 
     mFileStream.flush();
