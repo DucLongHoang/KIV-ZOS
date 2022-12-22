@@ -2,8 +2,10 @@
 
 #include <regex>
 #include <filesystem>
+#include <string_view>
 
 static const std::regex REGEX_FORMAT("[1-9]+[0-9]*(kb|Kb|KB|mb|Mb|MB)");
+static const std::regex REGEX_KB("(kb|Kb|KB){1}");
 
 Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
     fill_args_count();
@@ -12,7 +14,7 @@ Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/") {
     if (std::filesystem::exists(fsName)) {
         std::cout << "File system: " << fsName << " found" << std::endl;
         std::cout << "Mounting file system..." << std::endl;
-        mount_fs(fsName);
+        mount(fsName);
     }
     else {
         std::cout << "File system: " << fsName << " not found" << std::endl;
@@ -69,12 +71,17 @@ void Shell::fill_handlers() {
             return true;
         }
 
-        std::string msg = std::filesystem::exists(mFsName) ?
+        std::string arg(args[0]);
+        std::string_view msg = std::filesystem::exists(mFsName) ?
                           "Formatting existing disk..." : "Creating new disk...";
         std::cout << msg << std::endl;
         mFilesystem = std::make_unique<Filesystem>(mFsName);
 
-        mFilesystem->init_fs()
+        auto bytes = arg.substr(arg.length() - 2);
+        auto multiplier = std::regex_match(bytes, REGEX_KB) ? 1_KB : 1_MB;
+        auto diskSize = std::stoi(arg.substr(0, arg.size())) * multiplier;
+
+        mFilesystem->init(diskSize);
 
         return true;
     };
@@ -117,6 +124,16 @@ void Shell::fill_args_count() {
     mArgsCountMap["close"] = Range{0, 0};
 }
 
+bool Shell::check_args_count(const std::string& opcode, uint argc) {
+    auto range = mArgsCountMap[opcode];
+    return (range.lower <= argc && argc <= range.upper);
+}
+
+void Shell::mount(const std::string &fsName) {
+    mFilesystem = std::make_unique<Filesystem>(fsName);
+    mFilesystem->mount();
+}
+
 void Shell::run(std::istream& istream) {
     Arguments args;
     std::string command, opcode, arg;
@@ -124,8 +141,10 @@ void Shell::run(std::istream& istream) {
 
     while(ret) {
         // prompt
-        std::cout << mCWD << "$ ";
+        std::cout << std::endl << "root@root:" << mCWD << std::endl;
+        std::cout << "$";
         std::getline(istream, command);
+        if (Utils::is_white_space(command)) continue;
 
         // print out input if automated
         if (dynamic_cast<std::istringstream *>(&istream) != nullptr)
@@ -149,6 +168,10 @@ void Shell::run(std::istream& istream) {
         // check if command exists
         if (!mHandlerMap.contains(opcode)) {
             std::cout << "Invalid command: " << opcode << std::endl;
+            continue;
+        }
+        if (check_args_count(opcode, args.size())) {
+            std::cout << "Incorrect number of arguments" << std::endl;
             continue;
         }
         ret = mHandlerMap[opcode](args);

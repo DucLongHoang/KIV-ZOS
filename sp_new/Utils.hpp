@@ -42,15 +42,22 @@ class Utils {
         }
 
         template<typename T>
-        static void write_to_stream(std::iostream &stream, T &data) {
+        static void write_to_stream(std::iostream& stream, T& data) {
             uint streamSize = sizeof(T);
             stream.write(reinterpret_cast<char *>(&data), streamSize);
         }
 
+        template<typename  T1, typename ... T>
+        static void write_to_stream(std::iostream& stream, T1& data, T& ... args) {
+            write_to_stream(stream, data);
+            write_to_stream(stream, args ...);
+        }
+
         template<typename T>
-        static void read_from_stream(std::iostream &stream, T &data) {
-            uint streamSize = sizeof(T);
-            stream.read(reinterpret_cast<char *>(&data), streamSize);
+        static T read_from_stream(std::iostream &stream) {
+            T data;
+            stream.read(reinterpret_cast<char *>(&data), sizeof(T));
+            return data;
         }
 
         static void string_to_stream(std::iostream &stream, const std::string &string) {

@@ -12,20 +12,19 @@ class BootSector {
         uint mDiskSize;             // total size of FS
         uint mClusterSize;          // size of one cluster
         uint mClusterCount;         // total number of clusters
-        uint mFatEntryCount;        // number of entries in FAT
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
 
         [[nodiscard]] uint size() const {
             return mSignature.size() + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
-                                             mFatEntryCount, mFatStartAddress, mDataStartAddress);
+                                                         mFatStartAddress, mDataStartAddress);
         }
 
         BootSector() = default;
         ~BootSector() = default;
 
         void init(uint diskSize);
-        void init_from_disk(std::fstream& stream, uint pos);
+        void mount(std::fstream& stream, uint pos);
 };
 
 /**
@@ -38,21 +37,21 @@ class FAT {
         static constexpr int FLAG_BAD_CLUSTER = -3;
         static constexpr int FLAG_NO_FREE_SPACE = -4;
 
+        // FAT table
         std::vector<int> table;
-
-        [[nodiscard]] uint size() const { return table.size() * sizeof(uint); }
+        uint size() const { return table.size() * sizeof(uint); }
 
         FAT() = default;
         ~FAT() = default;
 
         void init(uint fatEntryCount);
-        void init_from_disk(std::fstream& stream, uint pos);
+        void mount(std::fstream& stream, uint pos);
 
         void write_FAT(uint startAddress, int idxOrFlag);
-        [[nodiscard]] uint find_free_index() const;
+        uint find_free_index() const;
 
-        [[nodiscard]] std::vector<int>::const_iterator begin() const { return table.begin(); }
-        [[nodiscard]] std::vector<int>::const_iterator end() const { return table.end(); }
+        std::vector<int>::const_iterator begin() const { return table.begin(); }
+        std::vector<int>::const_iterator end() const { return table.end(); }
 };
 
 /**
@@ -65,7 +64,7 @@ public:
     uint mSize;             // file size
     uint mStartCluster;     // first cluster of file
 
-    [[nodiscard]] uint size() const {
+    uint size() const {
         return mFilename.size() + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
     }
 
@@ -73,7 +72,7 @@ public:
     ~DirEntry() = default;
 
     void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
-    void init_from_disk(std::fstream& stream, uint pos);
+    void mount(std::fstream& stream, uint pos);
 };
 
 /**
@@ -89,10 +88,11 @@ private:
     std::unique_ptr<DirEntry> mRootDir;
 
 public:
-    Filesystem(std::string name) : mDiskName(std::move(name)) {}
-    ~Filesystem() {
-        mFileStream.close();
-    };
+    explicit Filesystem(std::string name) : mDiskName(std::move(name)) {}
+    ~Filesystem() = default;
+
+    void init(uint size);
+    void mount();
 
     void wipe_clusters();
     void init_test_files();
@@ -101,7 +101,4 @@ public:
     void write_FAT();
     void write_root_dir();
     void write_directory_item(DirEntry& dirItem);
-
-    bool init_fs(uint size) override;
-    bool mount_fs() override;
 };

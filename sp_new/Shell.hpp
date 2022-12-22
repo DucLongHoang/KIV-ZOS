@@ -20,11 +20,12 @@ class Shell {
 
         void fill_handlers();
         void fill_args_count();
+        bool check_args_count(const std::string& opcode, uint argc);
 
     public:
         explicit Shell(const std::string& fsName);
         ~Shell() = default;
 
-        void mount_fs(const std::string& fsName);
+        void mount(const std::string& fsName);
         void run(std::istream& istream);
 };
