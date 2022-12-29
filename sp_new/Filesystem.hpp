@@ -3,6 +3,9 @@
 #include <fstream>
 #include "Utils.hpp"
 
+using Cluster = std::array<char, CLUSTER_SIZE>;
+using Clusters = std::vector<Cluster>;
+
 /**
  * Class BootSector
  */
@@ -60,43 +63,46 @@ class FAT {
  * Class DirEntry - can be file or directory
  */
 class DirEntry {
-public:
-    std::string mFilename;  // 7 + 1 + 3 + \0
-    bool mIsFile;           // true -> is file, false -> is dir
-    uint mSize;             // file size
-    uint mStartCluster;     // first cluster of file
+    public:
+        std::string mFilename;  // 7 + 1 + 3 + \0
+        bool mIsFile;           // true -> is file, false -> is dir
+        uint mSize;             // file size
+        uint mStartCluster;     // first cluster of file
 
-    uint size() const {
-        return mFilename.size() + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
-    }
+        uint size() const {
+            return mFilename.size() + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
+        }
 
-    DirEntry() = default;
-    ~DirEntry() = default;
+        DirEntry() = default;
+        ~DirEntry() = default;
 
-    void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
-    void mount(std::fstream& stream, uint pos);
-    void write_to_disk(std::fstream& stream);
-};
+        void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
+        void mount(std::fstream& stream, uint pos);
+        void write_to_disk(std::fstream& stream);
+    };
 
 /**
  * Class Filesystem
  */
 class Filesystem {
-private:
-    std::fstream mFileStream;
-    std::string mDiskName;
+    private:
+        std::fstream mFileStream;
+        std::string mDiskName;
 
-    std::unique_ptr<BootSector> mBS;
-    std::unique_ptr<FAT> mFAT;
-    std::unique_ptr<DirEntry> mRootDir;
+        BootSector mBS;
+        FAT mFAT;
+        DirEntry mRootDir;
+        Clusters clusters;
 
-public:
-    explicit Filesystem(std::string name) : mDiskName(std::move(name)) {}
-    ~Filesystem() = default;
+    public:
+        explicit Filesystem(std::string name) : mDiskName(std::move(name)) {}
+        ~Filesystem() = default;
 
-    void init(uint size);
-    void mount();
+        void init(uint size);
+        void mount();
 
-    void wipe_clusters();
-    void init_default_files();
+        void wipe_clusters();
+        void init_default_files();
+        void create_dir_entry(const std::string& name, bool isFile, const std::string& content);
+        void remove_dir_entry(const std::string& name);
 };

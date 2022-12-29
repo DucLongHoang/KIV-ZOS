@@ -14,6 +14,7 @@ class Shell {
     private:
         std::string mFsName;
         std::string mCWD;
+        std::array<char, CLUSTER_SIZE> mCWC;    // current working cluster
         std::unique_ptr<Filesystem> mFilesystem;
         std::unordered_map<std::string, Handler> mHandlerMap;
         std::unordered_map<std::string, Range> mArgsCountMap;
@@ -21,11 +22,10 @@ class Shell {
         void fill_handlers();
         void fill_args_count();
         bool check_args_count(const std::string& opcode, uint argc);
+        void mount(const std::string& fsName);
 
     public:
         explicit Shell(const std::string& fsName);
         ~Shell() = default;
-
-        void mount(const std::string& fsName);
         void run(std::istream& istream);
 };

@@ -34,7 +34,7 @@ class BootSector : public InitializableFromDisk {
         ~BootSector() = default;
 
         void init(uint diskSize);
-        void init_from_disk(std::fstream& stream, uint pos) override;
+        void mount(std::fstream& stream, uint pos) override;
 };
 
 /**
@@ -55,7 +55,7 @@ class FAT : public InitializableFromDisk {
         ~FAT() = default;
 
         void init(uint fatEntryCount);
-        void init_from_disk(std::fstream& stream, uint pos) override;
+        void mount(std::fstream& stream, uint pos) override;
 
         void write_FAT(uint startAddress, int idxOrFlag);
         [[nodiscard]] uint find_free_index() const;

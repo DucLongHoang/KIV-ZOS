@@ -12,7 +12,7 @@ void BootSector::init(uint diskSize) {
     mDataStartAddress = BootSector::size() + mFatEntryCount * sizeof(uint);
 }
 
-void BootSector::init_from_disk(std::fstream& stream, uint pos) {
+void BootSector::mount(std::fstream& stream, uint pos) {
     stream.seekg(pos);
     mSignature = string_from_stream(stream, SIGNATURE_LEN);
     read_from_stream(stream, mDiskSize);
@@ -27,7 +27,7 @@ void FAT::init(uint fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
 }
 
-void FAT::init_from_disk(std::fstream& stream, uint pos) {
+void FAT::mount(std::fstream& stream, uint pos) {
     stream.seekg(pos);
     for (int& fatEntry : table) {
         read_from_stream(stream, fatEntry);

@@ -75,7 +75,6 @@ class Utils {
             std::ostringstream stream;
             stream << std::left << std::setw(size) << std::setfill('\0') << str ;
             return stream.str();
-
         }
 
         static bool is_white_space(const std::string &str) {

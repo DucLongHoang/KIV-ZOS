@@ -87,8 +87,8 @@ void Filesystem::wipe_clusters() {
     std::array<char, CLUSTER_SIZE> emptyCluster{};
     emptyCluster.fill('\0');
     // move seek to correct position
-    mFileStream.seekp(mBS->mDataStartAddress);
-    auto clusterView = std::ranges::iota_view{0u, mBS->mClusterCount};
+    mFileStream.seekp(mBS.mDataStartAddress);
+    auto clusterView = std::ranges::iota_view{0u, mBS.mClusterCount};
     // repeat wiping cluster
     std::for_each(clusterView.begin(), clusterView.end(), [this, &emptyCluster](auto i) {
         Utils::write_to_stream(mFileStream, emptyCluster);
@@ -100,29 +100,29 @@ void Filesystem::init(uint size) {
     mFileStream.open(mDiskName, mode);
 
     // construct disk sections
-    mBS = std::make_unique<BootSector>();
-    mFAT = std::make_unique<FAT>();
-    mRootDir = std::make_unique<DirEntry>();
+    mBS = BootSector();
+    mFAT = FAT();
+    mRootDir = DirEntry();
 
     // init disk sections
-    this->mBS->init(size);
-    this->mFAT->init(mBS->mClusterCount);
-    this->mRootDir->init("/", false, 0, 0);
-    mFAT->write_FAT(0, FAT::FLAG_FILE_END);
+    mBS.init(size);
+    mFAT.init(mBS.mClusterCount);
+    mRootDir.init("/", false, 0, 0);
+    mFAT.write_FAT(0, FAT::FLAG_FILE_END);
 
     if (!mFileStream) {
         std::cout << "Error opening file" << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    mBS->write_to_disk(mFileStream);
+    mBS.write_to_disk(mFileStream);
 
-    mFileStream.seekp(mBS->mFatStartAddress);
-    mFAT->write_to_disk(mFileStream);
+    mFileStream.seekp(mBS.mFatStartAddress);
+    mFAT.write_to_disk(mFileStream);
 
     wipe_clusters();
-    mFileStream.seekp(mBS->mDataStartAddress);
-    mRootDir->write_to_disk(mFileStream);
+    mFileStream.seekp(mBS.mDataStartAddress);
+    mRootDir.write_to_disk(mFileStream);
 //    init_test_files();
 
     mFileStream.flush();
@@ -133,13 +133,64 @@ void Filesystem::mount() {
     mFileStream.open(mDiskName, mode);
 
     // construct disk sections
-    mBS = std::make_unique<BootSector>();
-    mFAT = std::make_unique<FAT>();
-    mRootDir = std::make_unique<DirEntry>();
+    mBS = BootSector();
+    mFAT = FAT();
+    mRootDir = DirEntry();
 
     // read info from disk and init
-    mBS->mount(mFileStream, 0);
-    mFAT->init(mBS->mClusterCount);
-    mFAT->mount(mFileStream, mBS->mFatStartAddress);
-    mRootDir->mount(mFileStream, mBS->mDataStartAddress);
+    mBS.mount(mFileStream, 0);
+    mFAT.init(mBS.mClusterCount);
+    mFAT.mount(mFileStream, mBS.mFatStartAddress);
+    mRootDir.mount(mFileStream, mBS.mDataStartAddress);
+}
+
+void Filesystem::create_dir_entry(const std::string& name, bool isFile, const std::string& content) {
+    DirEntry dirEntry;
+    uint startCluster = mFAT.find_free_index();
+    dirEntry.init(name, isFile, content.size(), startCluster);
+}
+
+void Filesystem::init_default_files() {
+    // START: file 01
+    DirEntry dirEntry1;
+    std::string diContent{"This is content of test.txt. Do what you want with this information."};
+    uint startCluster = mFAT.find_free_index();
+    dirEntry1.init("test.txt", true, diContent.size(), startCluster);
+
+    mFAT.write_FAT(startCluster, FAT::FLAG_FILE_END);
+    mRootDir.mSize += dirEntry1.size();
+//
+//    // write file to cluster
+//
+//    // START: file 02
+//    DirectoryItem di2;
+//    startCluster = mFAT.find_free_index();
+//    di2.init("home", false, 0, startCluster);
+//
+//    mFAT.write_FAT(startCluster, FAT::FLAG_FILE_END);
+//    mRootDir.mSize += di2.size();
+//
+//    // START: file 03
+//    DirectoryItem di3;
+//    std::string diContent3{"As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon."};
+//    startCluster = mFAT.find_free_index();
+//    di3.init("thesis.txt", true, diContent3.size(), startCluster);
+//
+//    mFAT.write_FAT(startCluster, FAT::FLAG_FILE_END);
+//    di2.mSize += di3.size();
+//
+//    // writing to disk
+//    write_root_dir();
+//
+//    write_directory_item(dirEntry1);
+//    write_directory_item(di2);
+//
+//    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * dirEntry1.mStartCluster);
+//    string_to_stream(mFileStream, diContent);
+//
+//    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * di2.mStartCluster);
+//    write_directory_item(di3);
+//
+//    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * di3.mStartCluster);
+//    string_to_stream(mFileStream, diContent3);
 }
