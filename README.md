@@ -1,2 +1,2 @@
 # KIV-ZOS
-Základy operačních systémů (Basics to operating systems)
+Základy operačních systémů (Introduction to operating systems)

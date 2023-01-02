@@ -77,6 +77,12 @@ class Utils {
             return stream.str();
         }
 
+        static std::string remove_padding(const std::string& str) {
+            std::string result{str};
+            result.erase(std::remove(result.begin(), result.end(), '\0'), result.end());
+            return result;
+        }
+
         static bool is_white_space(const std::string &str) {
             return std::all_of(str.begin(), str.end(), isspace);
         }
