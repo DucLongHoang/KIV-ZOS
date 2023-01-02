@@ -3,8 +3,8 @@
 #include <fstream>
 #include "Utils.hpp"
 
-using Cluster = std::array<char, CLUSTER_SIZE>;
-using Clusters = std::vector<Cluster>;
+//using Cluster = std::array<char, CLUSTER_SIZE>;
+//using Clusters = std::vector<Cluster>;
 
 /**
  * Class BootSector
@@ -52,11 +52,12 @@ class FAT {
         void mount(std::fstream& stream, uint pos);
         void write_to_disk(std::fstream& stream);
 
-        void write_FAT(uint startAddress, int idxOrFlag);
+        void write_FAT(uint idx, uint fileSize);
         uint find_free_index() const;
+        uint find_index_of(const std::string& str, uint startingPoint) const;
 
-        std::vector<int>::const_iterator begin() const { return table.begin(); }
-        std::vector<int>::const_iterator end() const { return table.end(); }
+        [[nodiscard]] std::vector<int>::const_iterator begin() const { return table.begin(); }
+        [[nodiscard]] std::vector<int>::const_iterator end() const { return table.end(); }
 };
 
 /**
@@ -76,9 +77,12 @@ class DirEntry {
         DirEntry() = default;
         ~DirEntry() = default;
 
+        explicit operator bool() const;
+
         void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
         void mount(std::fstream& stream, uint pos);
         void write_to_disk(std::fstream& stream);
+        void write_content_to_disk(std::fstream& stream, uint dataStartAddress, const std::vector<uint>& clusters , const std::string& content);
     };
 
 /**
@@ -92,7 +96,7 @@ class Filesystem {
         BootSector mBS;
         FAT mFAT;
         DirEntry mRootDir;
-        Clusters clusters;
+//        Clusters clusters;
 
     public:
         explicit Filesystem(std::string name) : mDiskName(std::move(name)) {}
@@ -103,6 +107,10 @@ class Filesystem {
 
         void wipe_clusters();
         void init_default_files();
-        void create_dir_entry(const std::string& name, bool isFile, const std::string& content);
+        DirEntry get_dir_entry(uint cluster);
+        void create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content);
         void remove_dir_entry(const std::string& name);
+        std::vector<DirEntry> read_dir_entry_as_dir(const DirEntry& parentDir);
+        std::string read_dir_entry_as_file(const DirEntry& dirEntry);
+        std::vector<uint> get_cluster_locations(const std::string& dirEntryName);
 };
