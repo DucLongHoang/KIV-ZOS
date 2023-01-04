@@ -25,7 +25,7 @@ class BootSector : public InitializableFromDisk {
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
 
-        [[nodiscard]] uint size() const {
+        [[nodiscard]] uint SIZE() const {
             return mSignature.size() + sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
                                                   mFatEntryCount, mFatStartAddress, mDataStartAddress);
         }
@@ -49,7 +49,7 @@ class FAT : public InitializableFromDisk {
 
         std::vector<int> table;
 
-        [[nodiscard]] uint size() const { return table.size() * sizeof(uint); }
+        [[nodiscard]] uint SIZE() const { return table.size() * sizeof(uint); }
 
         FAT() = default;
         ~FAT() = default;

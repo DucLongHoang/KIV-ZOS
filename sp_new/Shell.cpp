@@ -109,6 +109,29 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["info"] = [this](Arguments& args) -> bool {
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
+        DirEntry fileToInfo;
+        fileToInfo.init("", false, 0, 0);
+
+        for (auto& dirEntry : dirEntries) {
+            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
+                fileToInfo = dirEntry;
+                break;
+            }
+        }
+        if (!fileToInfo) {
+            std::cout << "File: " << args.front() << " not found";
+            return true;
+        }
+
+        auto clusters = mFilesystem->get_cluster_locations(fileToInfo);
+        std::cout << "File: " << Utils::remove_padding(fileToInfo.mFilename) << " is in cluster/s: ";
+        for (auto& i : clusters) {
+            std::cout << i;
+        }
+        std::cout << std::endl;
+
         return true;
     };
     mHandlerMap["incp"] = [this](Arguments& args) -> bool {
@@ -138,6 +161,8 @@ void Shell::fill_handlers() {
         auto diskSize = std::stoi(arg.substr(0, arg.size())) * multiplier;
 
         mFilesystem->init(diskSize);
+        mCWD = "/";
+        mCWC = 0;
 
         return true;
     };
