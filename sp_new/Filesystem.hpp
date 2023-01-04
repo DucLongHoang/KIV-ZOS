@@ -90,14 +90,17 @@ class Filesystem {
     private:
         std::fstream mFileStream;
         std::string mDiskName;
+        uint mTwoDirEntries;
+        std::array<char, CLUSTER_SIZE> mEmptyCluster;
 
         BootSector mBS;
         FAT mFAT;
         DirEntry mRootDir;
-//        Clusters clusters;
 
     public:
-        explicit Filesystem(std::string name) : mDiskName(std::move(name)) {}
+        explicit Filesystem(std::string name) : mDiskName(std::move(name)), mTwoDirEntries(2)  {
+            mEmptyCluster.fill('\0');
+        }
         ~Filesystem() = default;
 
         void init(uint size);
@@ -105,10 +108,11 @@ class Filesystem {
 
         void wipe_clusters();
         void init_default_files();
-        DirEntry get_dir_entry(uint cluster);
+        DirEntry get_dir_entry(uint cluster, bool isFile);
+        DirEntry get_last_dir_entry(uint cluster);
         void create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content);
-        void remove_dir_entry(const std::string& name);
+        void remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position);
         std::vector<DirEntry> read_dir_entry_as_dir(const DirEntry& parentDir);
         std::string read_dir_entry_as_file(const DirEntry& dirEntry);
-        std::vector<uint> get_cluster_locations(const std::string& dirEntryName);
+        std::vector<uint> get_cluster_locations(const DirEntry& dirEntry);
 };
