@@ -108,8 +108,7 @@ class Filesystem {
 
         void wipe_clusters();
         void init_default_files();
-        DirEntry get_dir_entry(uint cluster, bool isFile);
-        DirEntry get_last_dir_entry(uint cluster);
+        DirEntry get_dir_entry(uint cluster, bool isFile, bool last);
         void create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content);
         void remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position);
         std::vector<DirEntry> read_dir_entry_as_dir(const DirEntry& parentDir);

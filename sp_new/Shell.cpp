@@ -40,7 +40,7 @@ void Shell::fill_handlers() {
             return true;
         }
 
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
 
         uint i = 0;
@@ -72,7 +72,7 @@ void Shell::fill_handlers() {
             return true;
         }
 
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
 
         uint i = 0;
@@ -90,7 +90,7 @@ void Shell::fill_handlers() {
     mHandlerMap["ls"] = [this](Arguments& args) -> bool {
         // list current dir
         if (args.empty()) {
-            DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+            DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
             auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
             for (auto& dirEntry : dirEntries) {
                 std::cout << Utils::remove_padding(dirEntry.mFilename) << std::endl;
@@ -111,7 +111,7 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["cat"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
         DirEntry fileToCat;
         fileToCat.init("", false, 0, 0);
@@ -138,7 +138,7 @@ void Shell::fill_handlers() {
     mHandlerMap["cd"] = [this](Arguments& args) -> bool {
         if (args.front() == ".") return true;
 
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
 
         for (auto& dirEntry : dirEntries) {
@@ -168,7 +168,7 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["info"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
         DirEntry fileToInfo;
         fileToInfo.init("", false, 0, 0);

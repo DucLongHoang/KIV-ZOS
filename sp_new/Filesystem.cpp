@@ -185,23 +185,19 @@ void Filesystem::mount() {
     mBS.mount(mFileStream, 0);
     mFAT.init(mBS.mClusterCount);
     mFAT.mount(mFileStream, mBS.mFatStartAddress);
-//    mRootDir.mount(mFileStream, mBS.mDataStartAddress);
 }
 
-DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile) {
+DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile, bool last) {
     DirEntry dirEntry;
     mFileStream.seekp(mBS.mDataStartAddress + (cluster * CLUSTER_SIZE));
+
+    if (last) {     // this option is used if we want last dirEntry of directory
+        auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
+        mFileStream.seekg((dirEntryCount - 1) * dirEntry.SIZE(), std::ios::cur);
+        dirEntry.mount(mFileStream);
+        return dirEntry;
+    }
     if (!isFile) Utils::read_from_stream<uint>(mFileStream);    // if dir, skip offset
-    dirEntry.mount(mFileStream);
-    return dirEntry;
-}
-
-DirEntry Filesystem::get_last_dir_entry(uint cluster) {
-    DirEntry dirEntry;
-    mFileStream.seekg(mBS.mDataStartAddress + (cluster * CLUSTER_SIZE));
-    auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
-
-    mFileStream.seekg((dirEntryCount - 1) * dirEntry.SIZE(), std::ios::cur);
     dirEntry.mount(mFileStream);
     return dirEntry;
 }
@@ -211,7 +207,7 @@ void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, b
     DirEntry newDirEntry, dot, dotdot;
     uint startCluster = mFAT.find_free_index();
     newDirEntry.init(name, isFile, content.size(), startCluster);
-    dotdot = get_dir_entry(parentCluster, false);
+    dotdot = get_dir_entry(parentCluster, false, false);
 
     // new dirEntry is a dir
     if (!isFile) {
@@ -246,7 +242,7 @@ void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, b
 void Filesystem::remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position) {
     mFileStream.seekg(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
     auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
-    DirEntry lastDirEntry = get_last_dir_entry(parentCluster);
+    DirEntry lastDirEntry = get_dir_entry(parentCluster, false, true);
 
     // check if dir has anything beside '.' and '..'
     if (!dirEntry.mIsFile && dirEntryCount > mTwoDirEntries) {
