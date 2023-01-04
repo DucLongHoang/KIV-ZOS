@@ -6,9 +6,9 @@ void BootSector::init(uint diskSize) {
     mSignature = Utils::zero_padded_string("duclong", SIGNATURE_LEN);
     mDiskSize = diskSize;
     mClusterSize = CLUSTER_SIZE;
-    mClusterCount = (mDiskSize - BootSector::size()) / (mClusterSize * 4);
-    mFatStartAddress = BootSector::size();
-    mDataStartAddress = BootSector::size() + mClusterCount * sizeof(uint);
+    mClusterCount = (mDiskSize - BootSector::SIZE()) / (CLUSTER_SIZE + sizeof(uint));
+    mFatStartAddress = BootSector::SIZE();
+    mDataStartAddress = BootSector::SIZE() + mClusterCount * sizeof(uint);
 }
 
 void BootSector::mount(std::fstream& stream, uint pos) {
