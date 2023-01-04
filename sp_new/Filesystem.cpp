@@ -50,9 +50,16 @@ void FAT::write_FAT(uint idx, uint fileSize) {
             idx = nextFreeCluster;
             nextFreeCluster = find_free_index();
             fileSize -= CLUSTER_SIZE;
-        }
-        while (fileSize > 0);
+        } while (fileSize > 0);
     }
+}
+void FAT::free_FAT(uint idx) {
+    int nextCluster;
+    do {
+        nextCluster = table[idx];
+        table[idx] = FAT::FLAG_UNUSED;
+        idx = nextCluster;
+    } while (nextCluster != FLAG_FILE_END);
 }
 
 uint FAT::find_free_index() const {
@@ -69,10 +76,6 @@ void FAT::write_to_disk(std::fstream &stream) {
         Utils::write_to_stream(stream, fatEntry);
     }
 }
-
-uint FAT::find_index_of(const std::string &str, uint startingPoint) const {
-    return  0;
-}
 // End : FAT
 
 // Start : DirEntry
@@ -83,8 +86,7 @@ void DirEntry::init(const std::string& filename, bool isFile, uint size, uint st
     mStartCluster = startCLuster;
 }
 
-void DirEntry::mount(std::fstream &stream, uint pos) {
-    stream.seekg(pos);
+void DirEntry::mount(std::fstream &stream) {
     mFilename = Utils::string_from_stream(stream, FILENAME_LEN);
     mIsFile = Utils::read_from_stream<bool>(stream);
     mSize = Utils::read_from_stream<uint>(stream);
@@ -96,7 +98,7 @@ void DirEntry::write_to_disk(std::fstream &stream) {
     Utils::write_to_stream(stream, mIsFile, mSize, mStartCluster);
 }
 
-void DirEntry::write_content_to_disk(std::fstream &stream, uint dataStartAddress, const std::vector<uint>& clusters, const std::string& content) {
+void DirEntry::write_content_to_disk(std::fstream &stream, uint dataStartAddress, const std::vector<uint>& clusters, const std::string& content) const {
     if (content.size() <= CLUSTER_SIZE) {
         stream.seekp(dataStartAddress + CLUSTER_SIZE * this->mStartCluster);
         Utils::string_to_stream(stream, content);
@@ -125,21 +127,20 @@ DirEntry::operator bool() const {
 // End : DirEntry
 
 void Filesystem::wipe_clusters() {
-    // create empty cluster
-    std::array<char, CLUSTER_SIZE> emptyCluster{};
-    emptyCluster.fill('\0');
-    // move seek to correct position
     mFileStream.seekp(mBS.mDataStartAddress);
     auto clusterView = std::ranges::iota_view{0u, mBS.mClusterCount};
-    // repeat wiping cluster
-    std::for_each(clusterView.begin(), clusterView.end(), [this, &emptyCluster](auto i) {
-        Utils::write_to_stream(mFileStream, emptyCluster);
+    std::for_each(clusterView.begin(), clusterView.end(), [this](auto i) {
+        Utils::write_to_stream(mFileStream, mEmptyCluster);
     });
 }
 
 void Filesystem::init(uint size) {
     auto mode = std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc;
     mFileStream.open(mDiskName, mode);
+    if (!mFileStream) {
+        std::cout << "Error opening disk" << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     // construct disk sections
     mBS = BootSector();
@@ -149,22 +150,24 @@ void Filesystem::init(uint size) {
     // init disk sections
     mBS.init(size);
     mFAT.init(mBS.mClusterCount);
-    mRootDir.init("/", false, 0, 0);
     mFAT.write_FAT(0, 0);
+    mRootDir.init("/", false, 0, 0);
+    DirEntry dot, dotdot;
+    dot.init(".", false, 0, 0);         // '.' in root points to itself
+    dotdot.init("..", false, 0, 0);     // '..' in root points to itself
 
-    if (!mFileStream) {
-        std::cout << "Error opening file" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
+    // saving info to disk
     mBS.write_to_disk(mFileStream);
-
     mFileStream.seekp(mBS.mFatStartAddress);
     mFAT.write_to_disk(mFileStream);
-
     wipe_clusters();
+
+    // save rootDir info to disk
     mFileStream.seekp(mBS.mDataStartAddress);
-    mRootDir.write_to_disk(mFileStream);
+    uint dirEntryCount = 2;
+    Utils::write_to_stream(mFileStream, dirEntryCount);
+    dot.write_to_disk(mFileStream);
+    dotdot.write_to_disk(mFileStream);
 
     init_default_files();
 }
@@ -182,45 +185,100 @@ void Filesystem::mount() {
     mBS.mount(mFileStream, 0);
     mFAT.init(mBS.mClusterCount);
     mFAT.mount(mFileStream, mBS.mFatStartAddress);
-    mRootDir.mount(mFileStream, mBS.mDataStartAddress);
+//    mRootDir.mount(mFileStream, mBS.mDataStartAddress);
 }
 
-DirEntry Filesystem::get_dir_entry(uint cluster) {
+DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile) {
     DirEntry dirEntry;
-    dirEntry.mount(mFileStream, mBS.mDataStartAddress + cluster * CLUSTER_SIZE);
+    mFileStream.seekp(mBS.mDataStartAddress + (cluster * CLUSTER_SIZE));
+    if (!isFile) Utils::read_from_stream<uint>(mFileStream);    // if dir, skip offset
+    dirEntry.mount(mFileStream);
+    return dirEntry;
+}
+
+DirEntry Filesystem::get_last_dir_entry(uint cluster) {
+    DirEntry dirEntry;
+    mFileStream.seekg(mBS.mDataStartAddress + (cluster * CLUSTER_SIZE));
+    auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
+
+    mFileStream.seekg((dirEntryCount - 1) * dirEntry.SIZE(), std::ios::cur);
+    dirEntry.mount(mFileStream);
     return dirEntry;
 }
 
 void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
     // create new file
-    DirEntry newDirEntry;
+    DirEntry newDirEntry, dot, dotdot;
     uint startCluster = mFAT.find_free_index();
     newDirEntry.init(name, isFile, content.size(), startCluster);
+    dotdot = get_dir_entry(parentCluster, false);
 
-    // increase size of parent dir by DirEntry size
-    DirEntry parentDirEntry = get_dir_entry(parentCluster);
-    parentDirEntry.mSize += newDirEntry.size();
+    // new dirEntry is a dir
+    if (!isFile) {
+        dot.init(".", isFile, 0, startCluster);
+        dotdot.mFilename = Utils::zero_padded_string("..", FILENAME_LEN);
 
+        mFileStream.seekp(mBS.mDataStartAddress + dot.mStartCluster * CLUSTER_SIZE);
+        Utils::write_to_stream(mFileStream, mTwoDirEntries);
+        dot.write_to_disk(mFileStream);
+        dotdot.write_to_disk(mFileStream);
+    }
     // set content of new file into FAT table
     mFAT.write_FAT(startCluster, content.size());
     mFileStream.seekp(mBS.mFatStartAddress);
     mFAT.write_to_disk(mFileStream);
 
     // save new info of parent dir to disk
-    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * parentDirEntry.mStartCluster);
-    parentDirEntry.write_to_disk(mFileStream);
+    mFileStream.seekg(mBS.mDataStartAddress + dotdot.mStartCluster * CLUSTER_SIZE);
+    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream) + 1;
+    mFileStream.seekp(mBS.mDataStartAddress + dotdot.mStartCluster * CLUSTER_SIZE);
+    Utils::write_to_stream(mFileStream, dirEntryCount);
 
     // write new file meta-info as content of parent dir
-    mFileStream.seekp(parentDirEntry.mSize - parentDirEntry.size(), std::ios::cur);     // some magic
+    mFileStream.seekp((dirEntryCount - 1) * dotdot.SIZE(), std::ios::cur);
     newDirEntry.write_to_disk(mFileStream);
 
     // save new file content into disk
-    auto clusters = get_cluster_locations(newDirEntry.mFilename);
+    auto clusters = get_cluster_locations(newDirEntry);
     newDirEntry.write_content_to_disk(mFileStream, mBS.mDataStartAddress, clusters, content);
 }
 
-std::vector<uint> Filesystem::get_cluster_locations(const std::string& dirEntryName) {
-    std::vector<uint> clusters{};
+void Filesystem::remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position) {
+    mFileStream.seekg(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
+    auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
+    DirEntry lastDirEntry = get_last_dir_entry(parentCluster);
+
+    // check if dir has anything beside '.' and '..'
+    if (!dirEntry.mIsFile && dirEntryCount > mTwoDirEntries) {
+        std::cout << "Directory " << Utils::remove_padding(dirEntry.mFilename) << " is not empty" << std::endl;
+        return;
+    }
+    // delete dirEntry content
+    mFileStream.seekp(mBS.mDataStartAddress + dirEntry.mStartCluster * CLUSTER_SIZE);
+    Utils::write_to_stream(mFileStream, mEmptyCluster);
+
+    // free FAT table
+    mFAT.free_FAT(dirEntry.mStartCluster);
+    mFileStream.seekp(mBS.mFatStartAddress);
+    mFAT.write_to_disk(mFileStream);
+
+    // change dirEntryCount and write the last entry of parent dir into the free space
+    dirEntryCount--;
+    mFileStream.seekp(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
+    Utils::write_to_stream(mFileStream, dirEntryCount);
+    mFileStream.seekp(position * dirEntry.SIZE(), std::ios::cur);
+    lastDirEntry.write_to_disk(mFileStream);
+}
+
+std::vector<uint> Filesystem::get_cluster_locations(const DirEntry& dirEntry) {
+    std::vector<uint> clusters{dirEntry.mStartCluster};
+    int nextCluster = mFAT.table[dirEntry.mStartCluster];
+
+    while (nextCluster != FAT::FLAG_FILE_END) {
+        clusters.push_back(nextCluster);
+        nextCluster = mFAT.table[nextCluster];
+    }
+
     return clusters;
 }
 
@@ -231,14 +289,14 @@ void Filesystem::init_default_files() {
     uint startCluster = mFAT.find_free_index();
     de1.init("test.txt", true, de1Content.size(), startCluster);
     mFAT.write_FAT(startCluster, de1Content.size());
-    mRootDir.mSize += de1.size();
 
     // START: file 02
-    DirEntry de2;
+    DirEntry de2, dot, dotdot;
     startCluster = mFAT.find_free_index();
     de2.init("home", false, 0, startCluster);
+    dot.init(".", false, 0, startCluster);
+    dotdot.init("..", false, 0, 0);
     mFAT.write_FAT(startCluster, 0);
-    mRootDir.mSize += de2.size();
 
     // START: file 03
     DirEntry de3;
@@ -246,45 +304,49 @@ void Filesystem::init_default_files() {
     startCluster = mFAT.find_free_index();
     de3.init("thesis.txt", true, de3Content.size(), startCluster);
     mFAT.write_FAT(startCluster, de3Content.size());
-    de2.mSize += de3.size();
 
-    // writing to disk
+    mFileStream.seekp(mBS.mFatStartAddress);
+    mFAT.write_to_disk(mFileStream);
+
+    // writing to root dir - cluster 0
+    mFileStream.seekg(mBS.mDataStartAddress);
+    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream) + 2;
     mFileStream.seekp(mBS.mDataStartAddress);
-    mRootDir.write_to_disk(mFileStream);
+    Utils::write_to_stream(mFileStream, dirEntryCount);
+    mFileStream.seekp((dirEntryCount - 2) * dotdot.SIZE(), std::ios::cur);
     de1.write_to_disk(mFileStream);
     de2.write_to_disk(mFileStream);
-
-    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * de1.mStartCluster);
+    // writing contents of test.txt - cluster 1
+    mFileStream.seekp(mBS.mDataStartAddress + de1.mStartCluster * CLUSTER_SIZE);
     Utils::string_to_stream(mFileStream, de1Content);
 
-    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * de2.mStartCluster);
+    // writing home dir - cluster 2
+    mFileStream.seekp(mBS.mDataStartAddress + de2.mStartCluster * CLUSTER_SIZE);
+    dirEntryCount = 3;
+    Utils::write_to_stream(mFileStream, dirEntryCount);
+    dot.write_to_disk(mFileStream);
+    dotdot.write_to_disk(mFileStream);
     de3.write_to_disk(mFileStream);
 
-    mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * de3.mStartCluster);
+    // writing contents of thesis.txt - cluster 3
+    mFileStream.seekp(mBS.mDataStartAddress + de3.mStartCluster * CLUSTER_SIZE);
     Utils::string_to_stream(mFileStream, de3Content);
-
-    mFAT.write_to_disk(mFileStream);
 }
 
 std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& parentDir) {
     std::vector<DirEntry> result{};
-    mFileStream.seekg(mBS.mDataStartAddress + CLUSTER_SIZE * parentDir.mStartCluster);
+    mFileStream.seekg(mBS.mDataStartAddress + parentDir.mStartCluster * CLUSTER_SIZE);
+    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
 
     DirEntry tmp;
-    tmp.mount(mFileStream, mFileStream.tellg());
-
-    while (tmp) {
+    while (dirEntryCount-- > 0) {
+        tmp.mount(mFileStream);
         result.emplace_back(tmp);
-        tmp.mount(mFileStream, mFileStream.tellg());
     }
     return result;
 }
 
 std::string Filesystem::read_dir_entry_as_file(const DirEntry& dirEntry) {
-    if (!dirEntry.mIsFile) {
-        std::cout << "File: " << Utils::remove_padding(dirEntry.mFilename) << "is a directory";
-        return "";
-    }
     std::string content{};
 
     uint idx = dirEntry.mStartCluster;
