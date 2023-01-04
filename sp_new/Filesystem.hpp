@@ -3,8 +3,6 @@
 #include <fstream>
 #include "Utils.hpp"
 
-//using Cluster = std::array<char, CLUSTER_SIZE>;
-//using Clusters = std::vector<Cluster>;
 
 /**
  * Class BootSector
@@ -18,8 +16,8 @@ class BootSector {
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
 
-        uint size() const {
-            return mSignature.size() + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
+        uint SIZE() const {
+            return SIGNATURE_LEN + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
                                                          mFatStartAddress, mDataStartAddress);
         }
 
@@ -43,7 +41,7 @@ class FAT {
 
         // FAT table
         std::vector<int> table;
-        uint size() const { return table.size() * sizeof(uint); }
+        uint SIZE() const { return table.size() * sizeof(uint); }
 
         FAT() = default;
         ~FAT() = default;
@@ -70,8 +68,8 @@ class DirEntry {
         uint mSize;             // file size
         uint mStartCluster;     // first cluster of file
 
-        uint size() const {
-            return mFilename.size() + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
+        uint SIZE() const {
+            return FILENAME_LEN + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
         }
 
         DirEntry() = default;
