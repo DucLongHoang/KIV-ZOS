@@ -51,8 +51,8 @@ class FAT {
         void write_to_disk(std::fstream& stream);
 
         void write_FAT(uint idx, uint fileSize);
+        void free_FAT(uint idx);
         uint find_free_index() const;
-        uint find_index_of(const std::string& str, uint startingPoint) const;
 
         [[nodiscard]] std::vector<int>::const_iterator begin() const { return table.begin(); }
         [[nodiscard]] std::vector<int>::const_iterator end() const { return table.end(); }
@@ -78,9 +78,9 @@ class DirEntry {
         explicit operator bool() const;
 
         void init(const std::string& filename, bool isFile, uint size, uint startCLuster);
-        void mount(std::fstream& stream, uint pos);
+        void mount(std::fstream& stream);
         void write_to_disk(std::fstream& stream);
-        void write_content_to_disk(std::fstream& stream, uint dataStartAddress, const std::vector<uint>& clusters , const std::string& content);
+        void write_content_to_disk(std::fstream& stream, uint dataStartAddress, const std::vector<uint>& clusters , const std::string& content) const;
     };
 
 /**
