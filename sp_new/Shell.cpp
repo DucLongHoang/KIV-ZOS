@@ -2,7 +2,8 @@
 
 #include <regex>
 #include <filesystem>
-#include <string_view>
+
+using namespace std::string_literals;
 
 static const std::regex REGEX_FORMAT("[1-9]+[0-9]*(kb|Kb|KB|mb|Mb|MB)");
 static const std::regex REGEX_KB("(kb|Kb|KB){1}");
@@ -32,10 +33,31 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rm"] = [this](Arguments& args) -> bool {
+        std::string str = args.front();
+        if (str == "." || str == "..") {
+            std::cout << "Cannot remove " << str << std::endl;
+            std::cout << "Try: 'rmdir " << str  << "'" << std::endl;
+            return true;
+        }
+
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
+
+        uint i = 0;
+        for (auto& dirEntry : dirEntries) {
+            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
+                mFilesystem->remove_dir_entry(dirEntry, curDir.mStartCluster, i);
+                return true;
+            }
+            i++;
+        }
+
+        std::cout << args.front() << " - no such file" << std::endl;
         return true;
     };
     mHandlerMap["mkdir"] = [this](Arguments& args) -> bool {
         std::string dirName = args.front();
+
         if (dirName.size() > FILENAME_LEN) {
             std::cout << "Directory name: " << dirName << " is too long" << std::endl;
             return true;
@@ -44,14 +66,31 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rmdir"] = [this](Arguments& args) -> bool {
+        std::string str = args.front();
+        if (str == "." || str == "..") {
+            std::cout << "LOL, you really tried 'rmdir " << str  << "'" << std::endl;
+            return true;
+        }
 
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
+        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
 
+        uint i = 0;
+        for (auto& dirEntry : dirEntries) {
+            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
+                mFilesystem->remove_dir_entry(dirEntry, curDir.mStartCluster, i);
+                return true;
+            }
+            i++;
+        }
+
+        std::cout << args.front() << " - no such directory" << std::endl;
         return true;
     };
     mHandlerMap["ls"] = [this](Arguments& args) -> bool {
         // list current dir
         if (args.empty()) {
-            DirEntry curDir = mFilesystem->get_dir_entry(mCWC);
+            DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
             auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
             for (auto& dirEntry : dirEntries) {
                 std::cout << Utils::remove_padding(dirEntry.mFilename) << std::endl;
@@ -59,49 +98,69 @@ void Shell::fill_handlers() {
         }
         // list dir from path
         else {
-            // check if relative or absolute path
+            // check if absolute path
+            if (args.front().starts_with('/')) {
+
+            }
+            // path is relative
+            else {
+
+            }
         }
 
         return true;
     };
     mHandlerMap["cat"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC);
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
         DirEntry fileToCat;
         fileToCat.init("", false, 0, 0);
 
         for (auto& dirEntry : dirEntries) {
             if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
-                fileToCat = dirEntry;
+                if (!dirEntry.mIsFile) {
+                    std::cout << "File: " << Utils::remove_padding(curDir.mFilename) << " is a directory";
+                    return true;
+                }
+                else {
+                    fileToCat = dirEntry;
+                    break;
+                }
             }
         }
         if (!fileToCat) {
             std::cout << "File: " << args.front() << " not found";
             return true;
         }
-
-        std::string content = mFilesystem->read_dir_entry_as_file(fileToCat);
-        if (content.empty()) return true;
-
-        std::cout << content << std::endl;
+        std::cout << mFilesystem->read_dir_entry_as_file(fileToCat) << std::endl;
         return true;
     };
     mHandlerMap["cd"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC);
+        if (args.front() == ".") return true;
+
+        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
 
         for (auto& dirEntry : dirEntries) {
-            auto dirName = Utils::remove_padding(dirEntry.mFilename);
-            if (dirName == args.front()) {
+            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
                 if (dirEntry.mIsFile) {
                     std::cout << args.front() << " is a file" << std::endl;
-                    break;
+                    return true;
                 }
-                mCWD = Utils::remove_padding(dirEntry.mFilename);
-                mCWC = curDir.mStartCluster;
-                break;
+                if (dirEntry.mStartCluster == 0)    // selected dirEntry is root "/"
+                    mCWD = "/";
+                else {
+                    auto dirTo = Utils::remove_padding(dirEntry.mFilename);
+                    dirTo = (mCWD == "/") ? dirTo : "/"s.append(dirTo);
+                    mCWD = (args.front() == "..")
+                           ? mCWD.substr(0, mCWD.find_last_of('/'))
+                           : mCWD += dirTo;
+                }
+                mCWC = dirEntry.mStartCluster;
+                return true;
             }
         }
+        std::cout << "File " << args.front() << " not found" << std::endl;
         return true;
     };
     mHandlerMap["pwd"] = [this](Arguments& args) -> bool {
