@@ -111,28 +111,10 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["cat"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
-        DirEntry fileToCat;
-        fileToCat.init("", false, 0, 0);
+        std::optional<DirEntry> fileToCat = Shell::get_dir_entry_from_path(args.front(), DirEntryType::FILE);
+        if (!fileToCat) return true;
 
-        for (auto& dirEntry : dirEntries) {
-            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
-                if (!dirEntry.mIsFile) {
-                    std::cout << "File: " << Utils::remove_padding(curDir.mFilename) << " is a directory";
-                    return true;
-                }
-                else {
-                    fileToCat = dirEntry;
-                    break;
-                }
-            }
-        }
-        if (!fileToCat) {
-            std::cout << "File: " << args.front() << " not found";
-            return true;
-        }
-        std::cout << mFilesystem->read_dir_entry_as_file(fileToCat) << std::endl;
+        std::cout << mFilesystem->read_dir_entry_as_file(fileToCat.value()) << std::endl;
         return true;
     };
     mHandlerMap["cd"] = [this](Arguments& args) -> bool {
@@ -168,24 +150,11 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["info"] = [this](Arguments& args) -> bool {
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
-        DirEntry fileToInfo;
-        fileToInfo.init("", false, 0, 0);
+        std::optional<DirEntry> fileToInfo = Shell::get_dir_entry_from_path(args.front(), DirEntryType::BOTH);
+        if (!fileToInfo) return true;
 
-        for (auto& dirEntry : dirEntries) {
-            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
-                fileToInfo = dirEntry;
-                break;
-            }
-        }
-        if (!fileToInfo) {
-            std::cout << "File: " << args.front() << " not found";
-            return true;
-        }
-
-        auto clusters = mFilesystem->get_cluster_locations(fileToInfo);
-        std::cout << "File: " << Utils::remove_padding(fileToInfo.mFilename) << " is in cluster/s: ";
+        auto clusters = mFilesystem->get_cluster_locations(fileToInfo.value());
+        std::cout << "File: " << Utils::remove_padding(fileToInfo->mFilename) << " is in cluster/s: ";
         for (auto& i : clusters) {
             std::cout << i;
         }
@@ -267,6 +236,33 @@ void Shell::fill_args_count() {
 bool Shell::check_args_count(const std::string& opcode, uint argc) {
     auto range = mArgsCountMap[opcode];
     return (range.lower <= argc && argc <= range.upper);
+}
+
+std::optional<DirEntry> Shell::get_dir_entry_from_path(const std::string& path, DirEntryType type) {
+    if (path.starts_with('/')) {    // path is absolute
+
+    }
+    else {                          // path is relative
+
+    }
+
+    DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
+    auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
+    DirEntry searchedDirEntry;
+
+    for (auto& dirEntry : dirEntries) {
+        if (Utils::remove_padding(dirEntry.mFilename) == path) {
+            if (type == DirEntryType::BOTH) return dirEntry;
+            if (dirEntry.mIsFile && type == DirEntryType::FILE) return dirEntry;
+            if (!dirEntry.mIsFile && type == DirEntryType::DIR) return dirEntry;
+
+            auto str = (dirEntry.mIsFile) ? "directory" : "file";   // reverse logic
+            std::cout << dirEntry.mFilename << " is not a " << str << std::endl;
+            return std::nullopt;
+        }
+    }
+    std::cout << path << " - not found" << std::endl;
+    return std::nullopt;
 }
 
 void Shell::mount(const std::string &fsName) {
