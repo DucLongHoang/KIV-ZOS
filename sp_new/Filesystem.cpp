@@ -126,7 +126,7 @@ DirEntry::operator bool() const {
 }
 // End : DirEntry
 
-void Filesystem::wipe_clusters() {
+void Filesystem::wipe_all_clusters() {
     mFileStream.seekp(mBS.mDataStartAddress);
     auto clusterView = std::ranges::iota_view{0u, mBS.mClusterCount};
     std::for_each(clusterView.begin(), clusterView.end(), [this](auto i) {
@@ -160,16 +160,15 @@ void Filesystem::init(uint size) {
     mBS.write_to_disk(mFileStream);
     mFileStream.seekp(mBS.mFatStartAddress);
     mFAT.write_to_disk(mFileStream);
-    wipe_clusters();
+    Filesystem::wipe_all_clusters();
 
     // save rootDir info to disk
     mFileStream.seekp(mBS.mDataStartAddress);
-    uint dirEntryCount = 2;
-    Utils::write_to_stream(mFileStream, dirEntryCount);
+    Utils::write_to_stream(mFileStream, mTwoDirEntries);
     dot.write_to_disk(mFileStream);
     dotdot.write_to_disk(mFileStream);
 
-    init_default_files();
+    Filesystem::init_default_files();
 }
 
 void Filesystem::mount() {
@@ -202,12 +201,19 @@ DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile, bool last) {
     return dirEntry;
 }
 
+uint Filesystem::get_child_dir_entry_count(const DirEntry &dirEntry) {
+    if (dirEntry.mIsFile) throw std::runtime_error("Cannot get child dirEntries of a file");
+
+    mFileStream.seekg(mBS.mDataStartAddress + dirEntry.mStartCluster * CLUSTER_SIZE);
+    return Utils::read_from_stream<uint>(mFileStream);
+}
+
 void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
     // create new file
     DirEntry newDirEntry, dot, dotdot;
     uint startCluster = mFAT.find_free_index();
     newDirEntry.init(name, isFile, content.size(), startCluster);
-    dotdot = get_dir_entry(parentCluster, false, false);
+    dotdot = Filesystem::get_dir_entry(parentCluster, false, false);
 
     // new dirEntry is a dir
     if (!isFile) {
@@ -225,8 +231,7 @@ void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, b
     mFAT.write_to_disk(mFileStream);
 
     // save new info of parent dir to disk
-    mFileStream.seekg(mBS.mDataStartAddress + dotdot.mStartCluster * CLUSTER_SIZE);
-    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream) + 1;
+    uint dirEntryCount = Filesystem::get_child_dir_entry_count(dotdot) + 1;
     mFileStream.seekp(mBS.mDataStartAddress + dotdot.mStartCluster * CLUSTER_SIZE);
     Utils::write_to_stream(mFileStream, dirEntryCount);
 
@@ -235,14 +240,14 @@ void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, b
     newDirEntry.write_to_disk(mFileStream);
 
     // save new file content into disk
-    auto clusters = get_cluster_locations(newDirEntry);
+    auto clusters = Filesystem::get_cluster_locations(newDirEntry);
     newDirEntry.write_content_to_disk(mFileStream, mBS.mDataStartAddress, clusters, content);
 }
 
 void Filesystem::remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position) {
     mFileStream.seekg(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
     auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
-    DirEntry lastDirEntry = get_dir_entry(parentCluster, false, true);
+    DirEntry lastDirEntry = Filesystem::get_dir_entry(parentCluster, false, true);
 
     // check if dir has anything beside '.' and '..'
     if (!dirEntry.mIsFile && dirEntryCount > mTwoDirEntries) {
@@ -279,60 +284,14 @@ std::vector<uint> Filesystem::get_cluster_locations(const DirEntry& dirEntry) {
 }
 
 void Filesystem::init_default_files() {
-    // START: file 01
-    DirEntry de1;
-    std::string de1Content{"This is content of test.txt. Do what you want with this information."};
-    uint startCluster = mFAT.find_free_index();
-    de1.init("test.txt", true, de1Content.size(), startCluster);
-    mFAT.write_FAT(startCluster, de1Content.size());
-
-    // START: file 02
-    DirEntry de2, dot, dotdot;
-    startCluster = mFAT.find_free_index();
-    de2.init("home", false, 0, startCluster);
-    dot.init(".", false, 0, startCluster);
-    dotdot.init("..", false, 0, 0);
-    mFAT.write_FAT(startCluster, 0);
-
-    // START: file 03
-    DirEntry de3;
-    std::string de3Content{"As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon."};
-    startCluster = mFAT.find_free_index();
-    de3.init("thesis.txt", true, de3Content.size(), startCluster);
-    mFAT.write_FAT(startCluster, de3Content.size());
-
-    mFileStream.seekp(mBS.mFatStartAddress);
-    mFAT.write_to_disk(mFileStream);
-
-    // writing to root dir - cluster 0
-    mFileStream.seekg(mBS.mDataStartAddress);
-    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream) + 2;
-    mFileStream.seekp(mBS.mDataStartAddress);
-    Utils::write_to_stream(mFileStream, dirEntryCount);
-    mFileStream.seekp((dirEntryCount - 2) * dotdot.SIZE(), std::ios::cur);
-    de1.write_to_disk(mFileStream);
-    de2.write_to_disk(mFileStream);
-    // writing contents of test.txt - cluster 1
-    mFileStream.seekp(mBS.mDataStartAddress + de1.mStartCluster * CLUSTER_SIZE);
-    Utils::string_to_stream(mFileStream, de1Content);
-
-    // writing home dir - cluster 2
-    mFileStream.seekp(mBS.mDataStartAddress + de2.mStartCluster * CLUSTER_SIZE);
-    dirEntryCount = 3;
-    Utils::write_to_stream(mFileStream, dirEntryCount);
-    dot.write_to_disk(mFileStream);
-    dotdot.write_to_disk(mFileStream);
-    de3.write_to_disk(mFileStream);
-
-    // writing contents of thesis.txt - cluster 3
-    mFileStream.seekp(mBS.mDataStartAddress + de3.mStartCluster * CLUSTER_SIZE);
-    Utils::string_to_stream(mFileStream, de3Content);
+    Filesystem::create_dir_entry(0, "test.txt", true, "This is content of test.txt. Do what you want with this information.");  // cluster 1
+    Filesystem::create_dir_entry(0, "home", false, "");     // cluster 2
+    Filesystem::create_dir_entry(2, "thesis.txt", true, "As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon.");
 }
 
 std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& parentDir) {
     std::vector<DirEntry> result{};
-    mFileStream.seekg(mBS.mDataStartAddress + parentDir.mStartCluster * CLUSTER_SIZE);
-    uint dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
+    uint dirEntryCount = Filesystem::get_child_dir_entry_count(parentDir);
 
     DirEntry tmp;
     while (dirEntryCount-- > 0) {
