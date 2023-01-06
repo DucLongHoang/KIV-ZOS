@@ -58,26 +58,24 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rm"] = [this](Arguments& args) -> bool {
-        std::string str = args.front();
-        if (str == "." || str == "..") {
-            std::cout << "Cannot remove " << str << std::endl;
-            std::cout << "Try: 'rmdir " << str  << "'" << std::endl;
+        const std::string fileToRemove = args.front();
+
+        // sanity check
+        if (fileToRemove == "." || fileToRemove == "..") {
+            std::cout << "Cannot remove " << fileToRemove << std::endl;
+            std::cout << "Try: 'rmdir " << fileToRemove << "'" << std::endl;
             return true;
         }
 
+        // find position of to-be-removed file
         DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
+        auto position = mFilesystem->get_position(fileToRemove, curDir);
 
-        uint i = 0;
-        for (auto& dirEntry : dirEntries) {
-            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
-                mFilesystem->remove_dir_entry(dirEntry, curDir.mStartCluster, i);
-                return true;
-            }
-            i++;
-        }
+        if (position >= 0)
+            mFilesystem->remove_dir_entry(curDir.mStartCluster, position);
+        else
+            std::cout << fileToRemove << " - no such file" << std::endl;
 
-        std::cout << args.front() << " - no such file" << std::endl;
         return true;
     };
     mHandlerMap["mkdir"] = [this](Arguments& args) -> bool {
