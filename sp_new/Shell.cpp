@@ -239,29 +239,51 @@ bool Shell::check_args_count(const std::string& opcode, uint argc) {
 }
 
 std::optional<DirEntry> Shell::get_dir_entry_from_path(const std::string& path, DirEntryType type) {
-    if (path.starts_with('/')) {    // path is absolute
+    std::filesystem::path fullPath(path);
+    std::vector<std::string> pathParts{};
 
+    // parsing path into parts
+    std::string parent;
+    do {
+        parent = fullPath.parent_path().string();
+        pathParts.push_back(fullPath.filename().string());
+        fullPath = std::filesystem::path{parent};
     }
-    else {                          // path is relative
+    while (!parent.empty() && parent != "/");
 
-    }
+    // init starting point from root or CWD
+    uint startCluster = fullPath.is_absolute() ? 0 : mCWC;
+    DirEntry curDirEntry = mFilesystem->get_dir_entry(startCluster, false, false);
 
-    DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-    auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
-    DirEntry searchedDirEntry;
+    // traverse from starting point and find next path part
+    while (!pathParts.empty()) {
+        // get path part
+        auto pathPart = pathParts.back();
+        pathParts.pop_back();
 
-    for (auto& dirEntry : dirEntries) {
-        if (Utils::remove_padding(dirEntry.mFilename) == path) {
-            if (type == DirEntryType::BOTH) return dirEntry;
-            if (dirEntry.mIsFile && type == DirEntryType::FILE) return dirEntry;
-            if (!dirEntry.mIsFile && type == DirEntryType::DIR) return dirEntry;
+        // searched current dir for dirEntry
+        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDirEntry);
+        auto searchedDirEntry = std::find_if(dirEntries.begin(), dirEntries.end(), [&pathPart](const DirEntry& dirEntry) {
+            return Utils::remove_padding(dirEntry.mFilename) == pathPart;
+        });
 
-            auto str = (dirEntry.mIsFile) ? "directory" : "file";   // reverse logic
-            std::cout << dirEntry.mFilename << " is not a " << str << std::endl;
+        // current path part not found -> end prematurely
+        if (searchedDirEntry == std::end(dirEntries)) {
+            std::cout << pathPart << " - not found" << std::endl;
             return std::nullopt;
         }
+        // path part found -> keep going
+        curDirEntry = *searchedDirEntry;
     }
-    std::cout << path << " - not found" << std::endl;
+
+    // found the correct dirEntry from path -> now check for filetype
+    if (type == DirEntryType::BOTH) return curDirEntry;
+    if (curDirEntry.mIsFile && type == DirEntryType::FILE) return curDirEntry;
+    if (!curDirEntry.mIsFile && type == DirEntryType::DIR) return curDirEntry;
+
+    auto str = (curDirEntry.mIsFile) ? "directory" : "file";   // reverse logic
+    std::cout << curDirEntry.mFilename << " is not a " << str << std::endl;
+
     return std::nullopt;
 }
 
