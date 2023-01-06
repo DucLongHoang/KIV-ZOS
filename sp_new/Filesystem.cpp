@@ -129,9 +129,9 @@ DirEntry::operator bool() const {
 void Filesystem::wipe_all_clusters() {
     mFileStream.seekp(mBS.mDataStartAddress);
     auto clusterView = std::ranges::iota_view{0u, mBS.mClusterCount};
-    std::for_each(clusterView.begin(), clusterView.end(), [this](auto i) {
+    for (const auto& _ : clusterView) {
         Utils::write_to_stream(mFileStream, mEmptyCluster);
-    });
+    }
 }
 
 void Filesystem::init(uint size) {
@@ -186,6 +186,14 @@ void Filesystem::mount() {
     mFAT.mount(mFileStream, mBS.mFatStartAddress);
 }
 
+DirEntry Filesystem::get_root_dir() {
+    DirEntry rootDir;
+    mFileStream.seekg(mBS.mDataStartAddress);
+    Utils::read_from_stream<uint>(mFileStream);
+    rootDir.mount(mFileStream);
+    return rootDir;
+}
+
 DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile, bool last) {
     DirEntry dirEntry;
     mFileStream.seekp(mBS.mDataStartAddress + (cluster * CLUSTER_SIZE));
@@ -201,6 +209,17 @@ DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile, bool last) {
     return dirEntry;
 }
 
+int Filesystem::get_position(const std::string& searched, const DirEntry& parent) {
+    auto dirEntries = Filesystem::read_dir_entry_as_dir(parent);
+
+    int i = 0;
+    for (const auto& dirEntry : dirEntries) {
+        if (Utils::remove_padding(dirEntry.mFilename) == searched) return i;
+        else i++;
+    }
+    return -1;
+}
+
 uint Filesystem::get_child_dir_entry_count(const DirEntry &dirEntry) {
     if (dirEntry.mIsFile) throw std::runtime_error("Cannot get child dirEntries of a file");
 
@@ -208,7 +227,7 @@ uint Filesystem::get_child_dir_entry_count(const DirEntry &dirEntry) {
     return Utils::read_from_stream<uint>(mFileStream);
 }
 
-void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
+DirEntry Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
     // create new file
     DirEntry newDirEntry, dot, dotdot;
     uint startCluster = mFAT.find_free_index();
@@ -242,24 +261,40 @@ void Filesystem::create_dir_entry(uint parentCluster, const std::string& name, b
     // save new file content into disk
     auto clusters = Filesystem::get_cluster_locations(newDirEntry);
     newDirEntry.write_content_to_disk(mFileStream, mBS.mDataStartAddress, clusters, content);
+
+    return newDirEntry;
 }
 
-void Filesystem::remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, uint position) {
+DirEntry Filesystem::copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy) {
+    DirEntry copiedDirEntry;    // copied file cannot be a directory
+    std::string fileContent = Filesystem::read_dir_entry_as_file(toCopy);
+    copiedDirEntry = Filesystem::create_dir_entry(parentCluster, nameOfCopy, toCopy.mIsFile, fileContent);
+
+    return copiedDirEntry;
+}
+
+void Filesystem::remove_dir_entry(uint parentCluster, uint position) {
+    DirEntry toRemove;
+
     mFileStream.seekg(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
     auto dirEntryCount = Utils::read_from_stream<uint>(mFileStream);
+
+    mFileStream.seekp(position * toRemove.SIZE(), std::ios::cur);
+    toRemove.mount(mFileStream);
+
     DirEntry lastDirEntry = Filesystem::get_dir_entry(parentCluster, false, true);
 
     // check if dir has anything beside '.' and '..'
-    if (!dirEntry.mIsFile && dirEntryCount > mTwoDirEntries) {
-        std::cout << "Directory " << Utils::remove_padding(dirEntry.mFilename) << " is not empty" << std::endl;
+    if (!toRemove.mIsFile && Filesystem::get_child_dir_entry_count(toRemove) > mTwoDirEntries) {
+        std::cout << "Directory " << Utils::remove_padding(toRemove.mFilename) << " is not empty" << std::endl;
         return;
     }
     // delete dirEntry content
-    mFileStream.seekp(mBS.mDataStartAddress + dirEntry.mStartCluster * CLUSTER_SIZE);
+    mFileStream.seekp(mBS.mDataStartAddress + toRemove.mStartCluster * CLUSTER_SIZE);
     Utils::write_to_stream(mFileStream, mEmptyCluster);
 
     // free FAT table
-    mFAT.free_FAT(dirEntry.mStartCluster);
+    mFAT.free_FAT(toRemove.mStartCluster);
     mFileStream.seekp(mBS.mFatStartAddress);
     mFAT.write_to_disk(mFileStream);
 
@@ -267,7 +302,7 @@ void Filesystem::remove_dir_entry(const DirEntry& dirEntry, uint parentCluster, 
     dirEntryCount--;
     mFileStream.seekp(mBS.mDataStartAddress + parentCluster * CLUSTER_SIZE);
     Utils::write_to_stream(mFileStream, dirEntryCount);
-    mFileStream.seekp(position * dirEntry.SIZE(), std::ios::cur);
+    mFileStream.seekp(position * toRemove.SIZE(), std::ios::cur);
     lastDirEntry.write_to_disk(mFileStream);
 }
 
@@ -285,18 +320,19 @@ std::vector<uint> Filesystem::get_cluster_locations(const DirEntry& dirEntry) {
 
 void Filesystem::init_default_files() {
     Filesystem::create_dir_entry(0, "test.txt", true, "This is content of test.txt. Do what you want with this information.");  // cluster 1
-    Filesystem::create_dir_entry(0, "home", false, "");     // cluster 2
+    Filesystem::create_dir_entry(0, "home", false);     // cluster 2
     Filesystem::create_dir_entry(2, "thesis.txt", true, "As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon.");
 }
 
-std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& parentDir) {
+std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& dirEntry) {
     std::vector<DirEntry> result{};
-    uint dirEntryCount = Filesystem::get_child_dir_entry_count(parentDir);
+    uint dirEntryCount = Filesystem::get_child_dir_entry_count(dirEntry);
 
     DirEntry tmp;
-    while (dirEntryCount-- > 0) {
+    while (dirEntryCount > 0) {
         tmp.mount(mFileStream);
         result.emplace_back(tmp);
+        dirEntryCount--;
     }
     return result;
 }
@@ -316,7 +352,6 @@ std::string Filesystem::read_dir_entry_as_file(const DirEntry& dirEntry) {
             idx = mFAT.table[idx];
 
         }
-    }
-    while (true);
+    } while (true);
     return content;
 }
