@@ -88,26 +88,19 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["ls"] = [this](Arguments& args) -> bool {
-        // list current dir
-        if (args.empty()) {
-            DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-            auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
-            for (auto& dirEntry : dirEntries) {
-                std::cout << Utils::remove_padding(dirEntry.mFilename) << std::endl;
-            }
-        }
-        // list dir from path
+        DirEntry dir;
+        if (args.empty())
+            dir = mFilesystem->get_dir_entry(mCWC, false, false);
         else {
-            // check if absolute path
-            if (args.front().starts_with('/')) {
-
-            }
-            // path is relative
-            else {
-
-            }
+            std::optional<DirEntry> dirEntryToList = Shell::get_dir_entry_from_path(args.front(), DirEntryType::DIR);
+            if (!dirEntryToList) return true;
+            dir = dirEntryToList.value();
         }
 
+        auto dirEntries = mFilesystem->read_dir_entry_as_dir(dir);
+        for (auto& dirEntry : dirEntries) {
+            std::cout << Utils::remove_padding(dirEntry.mFilename) << std::endl;
+        }
         return true;
     };
     mHandlerMap["cat"] = [this](Arguments& args) -> bool {
@@ -142,7 +135,7 @@ void Shell::fill_handlers() {
                 return true;
             }
         }
-        std::cout << "File " << args.front() << " not found" << std::endl;
+        std::cout << "Directory " << args.front() << " not found" << std::endl;
         return true;
     };
     mHandlerMap["pwd"] = [this](Arguments& args) -> bool {
@@ -159,7 +152,6 @@ void Shell::fill_handlers() {
             std::cout << i;
         }
         std::cout << std::endl;
-
         return true;
     };
     mHandlerMap["incp"] = [this](Arguments& args) -> bool {
