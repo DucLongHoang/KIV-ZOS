@@ -27,6 +27,24 @@ Shell::Shell(const std::string& fsName) : mFsName(fsName), mCWD("/"), mCWC(0) {
 
 void Shell::fill_handlers() {
     mHandlerMap["cp"] = [this](Arguments& args) -> bool {
+        std::filesystem::path fromPath(args.front());
+        std::filesystem::path toPath(args.back());
+
+        // check if source file exists
+        std::optional<DirEntry> fileToMove = Shell::get_dir_entry_from_path(fromPath.string(), DirEntryType::BOTH);
+        if (!fileToMove) return true;
+        if (!fileToMove->mIsFile) {
+            std::cout << Utils::remove_padding(fileToMove->mFilename) << " is a directory" << std::endl;
+            return true;
+        }
+
+        // check if target location exists
+        std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
+        if (!targetDir) return true;
+
+        // cope source file
+        mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToMove.value(), toPath.filename().string());
+
         return true;
     };
     mHandlerMap["mv"] = [this](Arguments& args) -> bool {
