@@ -79,13 +79,18 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["mkdir"] = [this](Arguments& args) -> bool {
-        std::string dirName = args.front();
+        std::filesystem::path path(args.front());
+        std::string dirName = path.filename().string();
 
         if (dirName.size() > FILENAME_LEN) {
             std::cout << "Directory name: " << dirName << " is too long" << std::endl;
             return true;
         }
-        mFilesystem->create_dir_entry(mCWC, dirName, false, "");
+
+        std::optional<DirEntry> parentDir = Shell::get_dir_entry_from_path(path.parent_path().string(), DirEntryType::DIR);
+        if (!parentDir) return true;
+
+        mFilesystem->create_dir_entry(parentDir->mStartCluster, dirName, false);
         return true;
     };
     mHandlerMap["rmdir"] = [this](Arguments& args) -> bool {
