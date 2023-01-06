@@ -94,25 +94,22 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rmdir"] = [this](Arguments& args) -> bool {
-        std::string str = args.front();
-        if (str == "." || str == "..") {
-            std::cout << "LOL, you really tried 'rmdir " << str  << "'" << std::endl;
+        const std::string dirToRemove = args.front();
+
+        // sanity check
+        if (dirToRemove == "." || dirToRemove == "..") {
+            std::cout << "LOL, you really tried 'rmdir " << dirToRemove << "'" << std::endl;
             return true;
         }
 
         DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
+        auto position = mFilesystem->get_position(dirToRemove, curDir);
 
-        uint i = 0;
-        for (auto& dirEntry : dirEntries) {
-            if (Utils::remove_padding(dirEntry.mFilename) == args.front()) {
-                mFilesystem->remove_dir_entry(dirEntry, curDir.mStartCluster, i);
-                return true;
-            }
-            i++;
-        }
+        if (position >= 0)
+            mFilesystem->remove_dir_entry(curDir.mStartCluster, position);
+        else
+            std::cout << dirToRemove << " - no such directory" << std::endl;
 
-        std::cout << args.front() << " - no such directory" << std::endl;
         return true;
     };
     mHandlerMap["ls"] = [this](Arguments& args) -> bool {
