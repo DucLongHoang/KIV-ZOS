@@ -1,6 +1,7 @@
 #include "Shell.hpp"
 
 #include <regex>
+#include <sstream>
 #include <filesystem>
 
 using namespace std::string_literals;
@@ -42,7 +43,7 @@ void Shell::fill_handlers() {
         std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
         if (!targetDir) return true;
 
-        // cope source file
+        // copy source file
         mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToMove.value(), toPath.filename().string());
 
         return true;
@@ -198,6 +199,28 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["incp"] = [this](Arguments& args) -> bool {
+        std::filesystem::path fromPath(args.front());
+        std::filesystem::path toPath(args.back());
+
+        // check if source file exists
+        std::ifstream ifs(fromPath);
+        if (!ifs.is_open()) {
+            std::cout << fromPath.filename().string() << " - not found" << std::endl;
+            return true;
+        }
+
+        // check if target location exists
+        std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
+        if (!targetDir) return true;
+
+        // save file into std::string
+        std::stringstream ss;
+        ss << ifs.rdbuf();
+        const auto fileContent = ss.str();
+
+        // copy source file
+        mFilesystem->create_dir_entry(targetDir->mStartCluster, toPath.filename().string(), true, fileContent);
+
         return true;
     };
     mHandlerMap["outcp"] = [this](Arguments& args) -> bool {
