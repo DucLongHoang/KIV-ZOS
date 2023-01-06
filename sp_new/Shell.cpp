@@ -32,10 +32,10 @@ void Shell::fill_handlers() {
         std::filesystem::path toPath(args.back());
 
         // check if source file exists
-        std::optional<DirEntry> fileToMove = Shell::get_dir_entry_from_path(fromPath.string(), DirEntryType::BOTH);
-        if (!fileToMove) return true;
-        if (!fileToMove->mIsFile) {
-            std::cout << Utils::remove_padding(fileToMove->mFilename) << " is a directory" << std::endl;
+        std::optional<DirEntry> fileToCopy = Shell::get_dir_entry_from_path(fromPath.string(), DirEntryType::BOTH);
+        if (!fileToCopy) return true;
+        if (!fileToCopy->mIsFile) {
+            std::cout << Utils::remove_padding(fileToCopy->mFilename) << " is a directory" << std::endl;
             return true;
         }
 
@@ -44,7 +44,7 @@ void Shell::fill_handlers() {
         if (!targetDir) return true;
 
         // copy source file
-        mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToMove.value(), toPath.filename().string());
+        mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToCopy.value(), toPath.filename().string());
 
         return true;
     };
@@ -253,6 +253,36 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["xcp"] = [this](Arguments& args) -> bool {
+        std::filesystem::path fromPath1(args.front());
+        std::filesystem::path fromPath2(args[1]);
+        std::filesystem::path toPath(args.back());
+
+        // check if first source file exists
+        std::optional<DirEntry> fileToCopy1 = Shell::get_dir_entry_from_path(fromPath1.string(), DirEntryType::BOTH);
+        if (!fileToCopy1) return true;
+        if (!fileToCopy1->mIsFile) {
+            std::cout << Utils::remove_padding(fileToCopy1->mFilename) << " is a directory" << std::endl;
+            return true;
+        }
+
+        // check if second source file exists
+        std::optional<DirEntry> fileToCopy2 = Shell::get_dir_entry_from_path(fromPath2.string(), DirEntryType::BOTH);
+        if (!fileToCopy2) return true;
+        if (!fileToCopy2->mIsFile) {
+            std::cout << Utils::remove_padding(fileToCopy2->mFilename) << " is a directory" << std::endl;
+            return true;
+        }
+
+        // check if target location exists
+        std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
+        if (!targetDir) return true;
+
+        auto combinedContent = mFilesystem->read_dir_entry_as_file(fileToCopy1.value())
+                        .append(mFilesystem->read_dir_entry_as_file(fileToCopy2.value()));
+
+        // create aggregate file
+        mFilesystem->create_dir_entry(targetDir->mStartCluster, toPath.filename().string(), true, combinedContent);
+
         return true;
     };
     mHandlerMap["short"] = [this](Arguments& args) -> bool {
