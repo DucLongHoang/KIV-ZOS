@@ -234,18 +234,19 @@ std::optional<DirEntry> Shell::get_dir_entry_from_path(const std::string& path, 
     std::filesystem::path fullPath(path);
     std::vector<std::string> pathParts{};
 
-    // parsing path into parts
-    std::string parent;
-    do {
-        parent = fullPath.parent_path().string();
-        pathParts.push_back(fullPath.filename().string());
-        fullPath = std::filesystem::path{parent};
-    }
-    while (!parent.empty() && parent != "/");
-
     // init starting point from root or CWD
-    uint startCluster = fullPath.is_absolute() ? 0 : mCWC;
+    uint startCluster = path.starts_with('/') ? 0 : mCWC;
     DirEntry curDirEntry = mFilesystem->get_dir_entry(startCluster, false, false);
+
+    // parsing path into parts
+    auto child = fullPath.filename().string();
+    auto parent = fullPath.parent_path().string();
+    while (!child.empty() && child != "/") {
+        pathParts.push_back(child);
+        fullPath = std::filesystem::path{parent};
+        child = fullPath.filename().string();
+        parent = fullPath.parent_path().string();
+    }
 
     // traverse from starting point and find next path part
     while (!pathParts.empty()) {
