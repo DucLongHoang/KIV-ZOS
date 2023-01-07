@@ -16,7 +16,7 @@ class BootSector {
         uint mDataStartAddress;     // start address of data blocks
         uint mMaxDirEntries;        // max number of dirEntries in a dir cluster
 
-        uint SIZE() const {
+        [[nodiscard]] uint SIZE() const {
             return SIGNATURE_LEN + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
                                                      mFatStartAddress, mDataStartAddress, mMaxDirEntries);
         }
@@ -25,7 +25,7 @@ class BootSector {
         ~BootSector() = default;
 
         void init(uint diskSize);
-        void mount(std::fstream& stream, uint pos);
+        void mount(std::fstream& stream);
         void write_to_disk(std::fstream& stream);
 };
 
@@ -41,18 +41,18 @@ class FAT {
 
         // FAT table
         std::vector<int> table;
-        uint SIZE() const { return table.size() * sizeof(uint); }
+        [[nodiscard]] uint SIZE() const { return table.size() * sizeof(uint); }
 
         FAT() = default;
         ~FAT() = default;
 
         void init(uint fatEntryCount);
-        void mount(std::fstream& stream, uint pos);
+        void mount(std::fstream& stream);
         void write_to_disk(std::fstream& stream);
 
-        void write_FAT(uint idx, int fileSize);
+        bool write_FAT(uint idx, size_t fileSize);
         void free_FAT(uint idx);
-        int find_free_index(int ignoredIdx) const;
+        [[nodiscard]] int find_free_index(int ignoredIdx) const;
 
         [[nodiscard]] std::vector<int>::const_iterator begin() const { return table.begin(); }
         [[nodiscard]] std::vector<int>::const_iterator end() const { return table.end(); }
@@ -68,7 +68,7 @@ class DirEntry {
         uint mSize;             // file size
         uint mStartCluster;     // first cluster of file
 
-        uint SIZE() const {
+        [[nodiscard]] uint SIZE() const {
             return FILENAME_LEN + Utils::sum_sizeof(mIsFile, mSize, mStartCluster);
         }
 
@@ -108,7 +108,6 @@ class Filesystem {
 
         void wipe_all_clusters();
         void init_default_files();
-        DirEntry get_root_dir();
         DirEntry get_dir_entry(uint cluster, bool isFile, bool last);
         int get_position(const std::string& searched, const DirEntry& parent);
         uint get_child_dir_entry_count(const DirEntry& dirEntry);

@@ -16,8 +16,7 @@ void BootSector::init(uint diskSize) {
         throw std::runtime_error("Cluster size is too small. Try increasing it");
 }
 
-void BootSector::mount(std::fstream& stream, uint pos) {
-    stream.seekg(pos);
+void BootSector::mount(std::fstream& stream) {
     mSignature = Utils::string_from_stream(stream, SIGNATURE_LEN);
     mDiskSize = Utils::read_from_stream<uint>(stream);
     mClusterSize = Utils::read_from_stream<uint>(stream);
@@ -39,19 +38,22 @@ void FAT::init(uint fatEntryCount) {
     table.resize(fatEntryCount, FAT::FLAG_UNUSED);
 }
 
-void FAT::mount(std::fstream& stream, uint pos) {
-    stream.seekg(pos);
+void FAT::mount(std::fstream& stream) {
     for (int& fatEntry : table) {
         fatEntry = Utils::read_from_stream<int>(stream);
     }
 }
 
-void FAT::write_FAT(uint idx, int fileSize) {
-    if (fileSize < CLUSTER_SIZE)
+bool FAT::write_FAT(uint idx, size_t fileSize) {
+    if (fileSize < CLUSTER_SIZE) {
         table[idx] = FAT::FLAG_FILE_END;
+        return true;
+    }
     else {
         int nextFreeCluster = find_free_index(idx);
         while (fileSize > CLUSTER_SIZE) {
+            if (nextFreeCluster == FAT::FLAG_NO_FREE_SPACE) return false;
+
             table[idx] = nextFreeCluster;
             idx = nextFreeCluster;
             nextFreeCluster = find_free_index(idx);
@@ -59,6 +61,7 @@ void FAT::write_FAT(uint idx, int fileSize) {
         }
         table[idx] = FAT::FLAG_FILE_END;
     }
+    return true;
 }
 
 void FAT::free_FAT(uint idx) {
@@ -137,7 +140,7 @@ DirEntry::operator bool() const {
 void Filesystem::wipe_all_clusters() {
     mFileStream.seekp(mBS.mDataStartAddress);
     auto clusterView = std::ranges::iota_view{0u, mBS.mClusterCount};
-    for (const auto& _ : clusterView) {
+    for ([[maybe_unused]] const auto& _ : clusterView) {
         Utils::write_to_stream(mFileStream, mEmptyCluster);
     }
 }
@@ -189,17 +192,11 @@ void Filesystem::mount() {
     mRootDir = DirEntry();
 
     // read info from disk and init
-    mBS.mount(mFileStream, 0);
+    mFileStream.seekg(0);
+    mBS.mount(mFileStream);
     mFAT.init(mBS.mClusterCount);
-    mFAT.mount(mFileStream, mBS.mFatStartAddress);
-}
-
-DirEntry Filesystem::get_root_dir() {
-    DirEntry rootDir;
-    mFileStream.seekg(mBS.mDataStartAddress);
-    Utils::read_from_stream<uint>(mFileStream);
-    rootDir.mount(mFileStream);
-    return rootDir;
+    mFileStream.seekg(mBS.mFatStartAddress);
+    mFAT.mount(mFileStream);
 }
 
 DirEntry Filesystem::get_dir_entry(uint cluster, bool isFile, bool last) {
@@ -238,7 +235,14 @@ uint Filesystem::get_child_dir_entry_count(const DirEntry &dirEntry) {
 std::optional<DirEntry> Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
     // create new file
     DirEntry newDirEntry, dot, dotdot;
-    uint startCluster = mFAT.find_free_index(-1);
+    long int startCluster = mFAT.find_free_index(-1);
+
+    // check for free space
+    if (startCluster == FAT::FLAG_NO_FREE_SPACE) {
+        std::cout << "FAT table is full. Delete some files before creating new ones" << std::endl;
+        return std::nullopt;
+    }
+
     newDirEntry.init(name, isFile, content.size(), startCluster);
     dotdot = Filesystem::get_dir_entry(parentCluster, false, false);
 
@@ -263,7 +267,18 @@ std::optional<DirEntry> Filesystem::create_dir_entry(uint parentCluster, const s
         dotdot.write_to_disk(mFileStream);
     }
     // set content of new file into FAT table
-    mFAT.write_FAT(startCluster, content.size());
+    bool ok = mFAT.write_FAT(startCluster, content.size());
+
+    // if not enough space to create file -> revert back FAT table by mounting it again from disk
+    if (not ok) {
+        mFAT.init(mBS.mClusterCount);
+        mFileStream.seekg(mBS.mFatStartAddress);
+        mFAT.mount(mFileStream);
+        std::cout << "FAT table is full. Delete some files before creating new ones" << std::endl;
+        return std::nullopt;
+    }
+
+    // no problem - save changed FAT into disk
     mFileStream.seekp(mBS.mFatStartAddress);
     mFAT.write_to_disk(mFileStream);
 
@@ -363,8 +378,8 @@ std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& dirEntry
 std::string Filesystem::read_dir_entry_as_file(const DirEntry& dirEntry) {
     std::string content{};
 
-    int idx = dirEntry.mStartCluster;
-    int readSize = dirEntry.mSize;
+    long long int idx = dirEntry.mStartCluster;
+    long long int readSize = dirEntry.mSize;
     do {
         mFileStream.seekp(mBS.mDataStartAddress + idx * CLUSTER_SIZE);
         if (readSize <= CLUSTER_SIZE) {
