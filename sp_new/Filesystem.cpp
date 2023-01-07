@@ -12,9 +12,8 @@ void BootSector::init(uint diskSize) {
 
     DirEntry tmp;
     mMaxDirEntries = (CLUSTER_SIZE - sizeof(uint)) / tmp.SIZE();
-    if (mMaxDirEntries == 0) {
-        std::cout << "Cluster size is too small. Try increasing it" << std::endl;
-    }
+    if (mMaxDirEntries == 0)
+        throw std::runtime_error("Cluster size is too small. Try increasing it");
 }
 
 void BootSector::mount(std::fstream& stream, uint pos) {
@@ -51,7 +50,7 @@ void FAT::write_FAT(uint idx, int fileSize) {
     if (fileSize < CLUSTER_SIZE)
         table[idx] = FAT::FLAG_FILE_END;
     else {
-        uint nextFreeCluster = find_free_index(idx);
+        int nextFreeCluster = find_free_index(idx);
         while (fileSize > CLUSTER_SIZE) {
             table[idx] = nextFreeCluster;
             idx = nextFreeCluster;
@@ -73,7 +72,7 @@ void FAT::free_FAT(uint idx) {
 
 int FAT::find_free_index(int ignoredIdx) const {
     // indexed range based for loop
-    for (size_t idx = 0; const auto& it : *this) {
+    for (int idx = 0; const auto& it : *this) {
         if (it == FAT::FLAG_UNUSED && idx != ignoredIdx) return idx;
         else ++idx;
     }
@@ -177,7 +176,7 @@ void Filesystem::init(uint size) {
     dot.write_to_disk(mFileStream);
     dotdot.write_to_disk(mFileStream);
 
-    Filesystem::init_default_files();
+//    Filesystem::init_default_files();
 }
 
 void Filesystem::mount() {
@@ -236,12 +235,22 @@ uint Filesystem::get_child_dir_entry_count(const DirEntry &dirEntry) {
     return Utils::read_from_stream<uint>(mFileStream);
 }
 
-DirEntry Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
+std::optional<DirEntry> Filesystem::create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content) {
     // create new file
     DirEntry newDirEntry, dot, dotdot;
-    uint startCluster = mFAT.find_free_index();
+    uint startCluster = mFAT.find_free_index(-1);
     newDirEntry.init(name, isFile, content.size(), startCluster);
     dotdot = Filesystem::get_dir_entry(parentCluster, false, false);
+
+    // check for existing filename in parent dir
+    auto dirEntries = Filesystem::read_dir_entry_as_dir(dotdot);
+    bool isDuplicate = std::any_of(dirEntries.begin(), dirEntries.end(), [&name](const DirEntry& dirEntry) {
+        return Utils::remove_padding(dirEntry.mFilename) == name;
+    });
+    if (isDuplicate) {
+        std::cout << name << " already exists" << std::endl;
+        return std::nullopt;
+    }
 
     // new dirEntry is a dir
     if (!isFile) {
@@ -274,12 +283,13 @@ DirEntry Filesystem::create_dir_entry(uint parentCluster, const std::string& nam
     return newDirEntry;
 }
 
-DirEntry Filesystem::copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy) {
-    DirEntry copiedDirEntry;    // copied file cannot be a directory
+std::optional<DirEntry> Filesystem::copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy) {
     std::string fileContent = Filesystem::read_dir_entry_as_file(toCopy);
-    copiedDirEntry = Filesystem::create_dir_entry(parentCluster, nameOfCopy, toCopy.mIsFile, fileContent);
+    // copied file cannot be a directory and might already exist
+    auto copiedDirEntry = Filesystem::create_dir_entry(parentCluster, nameOfCopy, toCopy.mIsFile, fileContent);
 
-    return copiedDirEntry;
+    if (!copiedDirEntry) return std::nullopt;
+    else return copiedDirEntry;
 }
 
 void Filesystem::remove_dir_entry(uint parentCluster, uint position) {

@@ -3,7 +3,6 @@
 #include <fstream>
 #include "Utils.hpp"
 
-
 /**
  * Class BootSector
  */
@@ -113,8 +112,8 @@ class Filesystem {
         DirEntry get_dir_entry(uint cluster, bool isFile, bool last);
         int get_position(const std::string& searched, const DirEntry& parent);
         uint get_child_dir_entry_count(const DirEntry& dirEntry);
-        DirEntry create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content = "");
-        DirEntry copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy);
+        std::optional<DirEntry> create_dir_entry(uint parentCluster, const std::string& name, bool isFile, const std::string& content = "");
+        std::optional<DirEntry> copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy);
         void remove_dir_entry(uint parentCluster, uint position);
         std::vector<DirEntry> read_dir_entry_as_dir(const DirEntry& dirEntry);
         std::string read_dir_entry_as_file(const DirEntry& dirEntry);

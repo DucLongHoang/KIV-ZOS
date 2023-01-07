@@ -43,7 +43,7 @@ void Shell::fill_handlers() {
         std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
         if (!targetDir) return true;
 
-        // copy source file
+        // copy source file - no need to check, if it exists it just won't be created
         mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToCopy.value(), toPath.filename().string());
 
         return true;
@@ -67,8 +67,11 @@ void Shell::fill_handlers() {
         // getting parent cluster of to-be-moved file
         std::optional<DirEntry> sourceDir = Shell::get_dir_entry_from_path(fromPath.parent_path().string(), DirEntryType::DIR);
 
-        // cope source file
-        mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToMove.value(), toPath.filename().string());
+        // copy source file
+        auto opt = mFilesystem->copy_dir_entry(targetDir->mStartCluster, fileToMove.value(), toPath.filename().string());
+
+        // check if it is a duplicate - end prematurely to not delete source file
+        if (!opt) return true;
 
         // remove source file
         auto position = mFilesystem->get_position(Utils::remove_padding(fileToMove->mFilename), sourceDir.value());
@@ -109,6 +112,7 @@ void Shell::fill_handlers() {
         std::optional<DirEntry> parentDir = Shell::get_dir_entry_from_path(path.parent_path().string(), DirEntryType::DIR);
         if (!parentDir) return true;
 
+        // no extra precautions
         mFilesystem->create_dir_entry(parentDir->mStartCluster, dirName, false);
         return true;
     };
@@ -179,7 +183,7 @@ void Shell::fill_handlers() {
                 return true;
             }
         }
-        std::cout << "Directory " << args.front() << " not found" << std::endl;
+        std::cout << args.front() << " - no such directory" << std::endl;
         return true;
     };
     mHandlerMap["pwd"] = [this](Arguments& args) -> bool {
@@ -191,11 +195,17 @@ void Shell::fill_handlers() {
         if (!fileToInfo) return true;
 
         auto clusters = mFilesystem->get_cluster_locations(fileToInfo.value());
-        std::cout << "File: " << Utils::remove_padding(fileToInfo->mFilename) << " is in cluster/s: ";
+
+        // format output, cluster IDs seperated by comma
+        std::ostringstream oss{"File: " + Utils::remove_padding(fileToInfo->mFilename) + " is in cluster/s: "};
         for (auto& i : clusters) {
-            std::cout << i;
+            oss << i << ", ";
         }
-        std::cout << std::endl;
+        auto str = oss.str();
+        str.pop_back();
+        str.pop_back();
+
+        std::cout << str << std::endl;
         return true;
     };
     mHandlerMap["incp"] = [this](Arguments& args) -> bool {
@@ -205,7 +215,7 @@ void Shell::fill_handlers() {
         // check if source file exists
         std::ifstream ifs(fromPath);
         if (!ifs.is_open()) {
-            std::cout << fromPath.filename().string() << " - not found" << std::endl;
+            std::cout << fromPath.filename().string() << " - no such file" << std::endl;
             return true;
         }
 
@@ -218,9 +228,8 @@ void Shell::fill_handlers() {
         ss << ifs.rdbuf();
         const auto fileContent = ss.str();
 
-        // copy source file
+        // copy source file - no extra precautions
         mFilesystem->create_dir_entry(targetDir->mStartCluster, toPath.filename().string(), true, fileContent);
-
         return true;
     };
     mHandlerMap["outcp"] = [this](Arguments& args) -> bool {
@@ -238,7 +247,7 @@ void Shell::fill_handlers() {
         // check if target location exists
         std::ofstream ofs(toPath);
         if (!ofs.is_open()) {
-            std::cout << toPath.parent_path().string() << " - not found" << std::endl;
+            std::cout << toPath.parent_path().string() << " - no such file" << std::endl;
             return true;
         }
 
@@ -254,7 +263,7 @@ void Shell::fill_handlers() {
         // check if source file exists
         std::ifstream ifs(fromPath);
         if (!ifs.is_open()) {
-            std::cout << fromPath.filename().string() << " - not found" << std::endl;
+            std::cout << fromPath.filename().string() << " - no such file" << std::endl;
             return true;
         }
 
@@ -351,9 +360,8 @@ void Shell::fill_handlers() {
         auto combinedContent = mFilesystem->read_dir_entry_as_file(fileToCopy1.value())
                         .append(mFilesystem->read_dir_entry_as_file(fileToCopy2.value()));
 
-        // create aggregate file
+        // create aggregate file - no extra precautions
         mFilesystem->create_dir_entry(targetDir->mStartCluster, toPath.filename().string(), true, combinedContent);
-
         return true;
     };
     mHandlerMap["short"] = [this](Arguments& args) -> bool {
