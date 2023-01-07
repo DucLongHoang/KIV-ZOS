@@ -249,6 +249,55 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["load"] = [this](Arguments& args) -> bool {
+        std::filesystem::path fromPath(args.front());
+
+        // check if source file exists
+        std::ifstream ifs(fromPath);
+        if (!ifs.is_open()) {
+            std::cout << fromPath.filename().string() << " - not found" << std::endl;
+            return true;
+        }
+
+        // do the same thing as in the Shell::run() method
+        while (not ifs.eof()) {
+            args.clear();
+            std::string command, opcode, arg;
+
+            // prompt
+            std::cout << std::endl << "root@root:" << mCWD << std::endl;
+            std::cout << "$";
+            std::getline(ifs, command);
+            if (Utils::is_white_space(command)) continue;
+
+            // print out input if automated
+            std::cout << command << std::endl;
+
+            // find space
+            size_t pos = command.find_first_of(' ');
+            if (pos != std::string::npos) {
+                // if space, parse command and args
+                opcode = command.substr(0, pos);
+
+                std::stringstream stream{command.substr(pos + 1)};
+                // load vector with parsed args
+                while (std::getline(stream, arg, ' ')) {
+                    args.emplace_back(arg);
+                }
+            }
+                // the opcode is the whole inputted line
+            else opcode = command;
+
+            // check if command exists
+            if (!mHandlerMap.contains(opcode)) {
+                std::cout << "Invalid command: " << opcode << std::endl;
+                continue;
+            }
+            if (!check_args_count(opcode, args.size())) {
+                std::cout << "Incorrect number of arguments" << std::endl;
+                continue;
+            }
+            mHandlerMap[opcode](args);
+        }
         return true;
     };
     mHandlerMap["format"] = [this](Arguments& args) -> bool {
