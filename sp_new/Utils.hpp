@@ -11,6 +11,7 @@ using uchar = unsigned char;
 
 static constexpr uchar FILENAME_LEN = 13;
 static constexpr uchar SIGNATURE_LEN = 9;
+static constexpr uint SHORT_THRESHOLD = 5000;
 
 // converting to bytes
 static constexpr uint operator"" _B(unsigned long long int b) {

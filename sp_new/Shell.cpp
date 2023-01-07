@@ -376,6 +376,33 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["short"] = [this](Arguments& args) -> bool {
+        std::filesystem::path path(args.front());
+
+        // check if source file exists
+        std::optional<DirEntry> fileToShort = Shell::get_dir_entry_from_path(path.string(), DirEntryType::BOTH);
+        auto name = Utils::remove_padding(fileToShort->mFilename);
+
+        if (!fileToShort) return true;
+        if (!fileToShort->mIsFile) {
+            std::cout << name << " is a directory" << std::endl;
+            return true;
+        }
+        if (fileToShort->mSize <= SHORT_THRESHOLD) {
+            std::cout << name << " does not need to be shorted" << std::endl;
+            return true;
+        }
+
+        // get parent dir of shorted file - no need to check
+        std::optional<DirEntry> dir = Shell::get_dir_entry_from_path(path.parent_path().string(), DirEntryType::DIR);
+        auto shortedContent = mFilesystem->read_dir_entry_as_file(fileToShort.value()).substr(0, SHORT_THRESHOLD);
+
+        // remove original file
+        auto pos = mFilesystem->get_position(name, dir.value());
+        mFilesystem->remove_dir_entry(dir->mStartCluster, pos);
+
+        // create original file with shorted content
+        mFilesystem->create_dir_entry(dir->mStartCluster, name, true, shortedContent);
+
         return true;
     };
     mHandlerMap["exit"] = [](Arguments& args) -> bool {
