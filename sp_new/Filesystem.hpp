@@ -15,10 +15,11 @@ class BootSector {
         uint mClusterCount;         // total number of clusters
         uint mFatStartAddress;      // start address of FAT
         uint mDataStartAddress;     // start address of data blocks
+        uint mMaxDirEntries;        // max number of dirEntries in a dir cluster
 
         uint SIZE() const {
             return SIGNATURE_LEN + Utils::sum_sizeof(mDiskSize, mClusterSize, mClusterCount,
-                                                         mFatStartAddress, mDataStartAddress);
+                                                     mFatStartAddress, mDataStartAddress, mMaxDirEntries);
         }
 
         BootSector() = default;
@@ -50,9 +51,9 @@ class FAT {
         void mount(std::fstream& stream, uint pos);
         void write_to_disk(std::fstream& stream);
 
-        void write_FAT(uint idx, uint fileSize);
+        void write_FAT(uint idx, int fileSize);
         void free_FAT(uint idx);
-        uint find_free_index() const;
+        int find_free_index(int ignoredIdx) const;
 
         [[nodiscard]] std::vector<int>::const_iterator begin() const { return table.begin(); }
         [[nodiscard]] std::vector<int>::const_iterator end() const { return table.end(); }

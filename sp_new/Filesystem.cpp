@@ -9,6 +9,12 @@ void BootSector::init(uint diskSize) {
     mClusterCount = (mDiskSize - BootSector::SIZE()) / (CLUSTER_SIZE + sizeof(uint));
     mFatStartAddress = BootSector::SIZE();
     mDataStartAddress = BootSector::SIZE() + mClusterCount * sizeof(uint);
+
+    DirEntry tmp;
+    mMaxDirEntries = (CLUSTER_SIZE - sizeof(uint)) / tmp.SIZE();
+    if (mMaxDirEntries == 0) {
+        std::cout << "Cluster size is too small. Try increasing it" << std::endl;
+    }
 }
 
 void BootSector::mount(std::fstream& stream, uint pos) {
@@ -19,12 +25,13 @@ void BootSector::mount(std::fstream& stream, uint pos) {
     mClusterCount = Utils::read_from_stream<uint>(stream);
     mFatStartAddress = Utils::read_from_stream<uint>(stream);
     mDataStartAddress = Utils::read_from_stream<uint>(stream);
+    mMaxDirEntries = Utils::read_from_stream<uint>(stream);
 }
 
 void BootSector::write_to_disk(std::fstream &stream) {
     Utils::string_to_stream(stream, mSignature);
     Utils::write_to_stream(stream, mDiskSize, mClusterSize,mClusterCount,
-                           mFatStartAddress, mDataStartAddress);
+                           mFatStartAddress, mDataStartAddress, mMaxDirEntries);
 }
 // End : BootSector
 
@@ -40,19 +47,21 @@ void FAT::mount(std::fstream& stream, uint pos) {
     }
 }
 
-void FAT::write_FAT(uint idx, uint fileSize) {
+void FAT::write_FAT(uint idx, int fileSize) {
     if (fileSize < CLUSTER_SIZE)
         table[idx] = FAT::FLAG_FILE_END;
     else {
-        uint nextFreeCluster = find_free_index();
-        do {
+        uint nextFreeCluster = find_free_index(idx);
+        while (fileSize > CLUSTER_SIZE) {
             table[idx] = nextFreeCluster;
             idx = nextFreeCluster;
-            nextFreeCluster = find_free_index();
+            nextFreeCluster = find_free_index(idx);
             fileSize -= CLUSTER_SIZE;
-        } while (fileSize > 0);
+        }
+        table[idx] = FAT::FLAG_FILE_END;
     }
 }
+
 void FAT::free_FAT(uint idx) {
     int nextCluster;
     do {
@@ -62,11 +71,11 @@ void FAT::free_FAT(uint idx) {
     } while (nextCluster != FLAG_FILE_END);
 }
 
-uint FAT::find_free_index() const {
+int FAT::find_free_index(int ignoredIdx) const {
     // indexed range based for loop
     for (size_t idx = 0; const auto& it : *this) {
-        if (it == FAT::FLAG_UNUSED) return idx;
-        ++idx;
+        if (it == FAT::FLAG_UNUSED && idx != ignoredIdx) return idx;
+        else ++idx;
     }
     return FAT::FLAG_NO_FREE_SPACE;
 }
@@ -100,20 +109,20 @@ void DirEntry::write_to_disk(std::fstream &stream) {
 
 void DirEntry::write_content_to_disk(std::fstream &stream, uint dataStartAddress, const std::vector<uint>& clusters, const std::string& content) const {
     if (content.size() <= CLUSTER_SIZE) {
-        stream.seekp(dataStartAddress + CLUSTER_SIZE * this->mStartCluster);
+        stream.seekp(dataStartAddress + this->mStartCluster * CLUSTER_SIZE);
         Utils::string_to_stream(stream, content);
     }
     else {
         // splitting file content into cluster sized bites
         std::string part = content.substr(0, CLUSTER_SIZE);
-        std::string rest = content.substr(CLUSTER_SIZE + 1);
+        std::string rest = content.substr(CLUSTER_SIZE);
         for (auto cluster: clusters) {
-            stream.seekp(dataStartAddress + CLUSTER_SIZE * cluster);
+            stream.seekp(dataStartAddress + cluster * CLUSTER_SIZE);
             Utils::string_to_stream(stream, part);
 
             if (rest.size() > CLUSTER_SIZE) {
                 part = rest.substr(0, CLUSTER_SIZE);
-                rest = rest.substr(CLUSTER_SIZE + 1);
+                rest = rest.substr(CLUSTER_SIZE);
             } else {
                 part = rest;
             }
@@ -289,9 +298,13 @@ void Filesystem::remove_dir_entry(uint parentCluster, uint position) {
         std::cout << "Directory " << Utils::remove_padding(toRemove.mFilename) << " is not empty" << std::endl;
         return;
     }
-    // delete dirEntry content
-    mFileStream.seekp(mBS.mDataStartAddress + toRemove.mStartCluster * CLUSTER_SIZE);
-    Utils::write_to_stream(mFileStream, mEmptyCluster);
+
+    // delete dirEntry content in all clusters
+    auto clusters = Filesystem::get_cluster_locations(toRemove);
+    for (auto cluster : clusters) {
+        mFileStream.seekp(mBS.mDataStartAddress + cluster * CLUSTER_SIZE);
+        Utils::write_to_stream(mFileStream, mEmptyCluster);
+    }
 
     // free FAT table
     mFAT.free_FAT(toRemove.mStartCluster);
@@ -319,9 +332,9 @@ std::vector<uint> Filesystem::get_cluster_locations(const DirEntry& dirEntry) {
 }
 
 void Filesystem::init_default_files() {
-    Filesystem::create_dir_entry(0, "test.txt", true, "This is content of test.txt. Do what you want with this information.");  // cluster 1
+    Filesystem::create_dir_entry(0, "test.txt", true, "This is content of test.txt. Do what you want with this information. This is content of test.txt. Do what you want with this information.");  // cluster 1
     Filesystem::create_dir_entry(0, "home", false);     // cluster 2
-    Filesystem::create_dir_entry(2, "thesis.txt", true, "As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon.");
+    Filesystem::create_dir_entry(3, "thesis.txt", true, "As expected, the random sampling method has the worst result, with several points overlapping and being too close to each other. The Poisson disk sampling does not have a problem with overlapping points but due to its random nature, the polygon is populated non-uniformly. The k-means method yields the best results with all points being distributed evenly across the whole polygon.");
 }
 
 std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& dirEntry) {
@@ -340,18 +353,19 @@ std::vector<DirEntry> Filesystem::read_dir_entry_as_dir(const DirEntry& dirEntry
 std::string Filesystem::read_dir_entry_as_file(const DirEntry& dirEntry) {
     std::string content{};
 
-    uint idx = dirEntry.mStartCluster;
-    uint readSize = dirEntry.mSize;
+    int idx = dirEntry.mStartCluster;
+    int readSize = dirEntry.mSize;
     do {
-        mFileStream.seekp(mBS.mDataStartAddress + CLUSTER_SIZE * idx);
-        if (readSize < CLUSTER_SIZE) {
+        mFileStream.seekp(mBS.mDataStartAddress + idx * CLUSTER_SIZE);
+        if (readSize <= CLUSTER_SIZE) {
             content += Utils::string_from_stream(mFileStream, readSize);
             break;
         }
         else {
+            content += Utils::string_from_stream(mFileStream, CLUSTER_SIZE);
             idx = mFAT.table[idx];
-
+            readSize -= CLUSTER_SIZE;
         }
-    } while (true);
+    } while (idx != FAT::FLAG_FILE_END);
     return content;
 }

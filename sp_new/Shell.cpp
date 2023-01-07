@@ -213,7 +213,7 @@ void Shell::fill_handlers() {
         std::optional<DirEntry> targetDir = Shell::get_dir_entry_from_path(toPath.parent_path().string(), DirEntryType::DIR);
         if (!targetDir) return true;
 
-        // save file into std::string
+        // save file into string
         std::stringstream ss;
         ss << ifs.rdbuf();
         const auto fileContent = ss.str();
