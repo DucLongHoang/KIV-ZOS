@@ -378,13 +378,13 @@ void Shell::fill_handlers() {
     mHandlerMap["short"] = [this](Arguments& args) -> bool {
         return true;
     };
-    mHandlerMap["exit"] = [this](Arguments& args) -> bool {
+    mHandlerMap["exit"] = [](Arguments& args) -> bool {
         return false;
     };
-    mHandlerMap["quit"] = [this](Arguments& args) -> bool {
+    mHandlerMap["quit"] = [](Arguments& args) -> bool {
         return false;
     };
-    mHandlerMap["close"] = [this](Arguments& args) -> bool {
+    mHandlerMap["close"] = [](Arguments& args) -> bool {
         return false;
     };
 }
