@@ -80,23 +80,24 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rm"] = [this](Arguments& args) -> bool {
-        const std::string fileToRemove = args.front();
+        std::filesystem::path path(args.front());
 
         // sanity check
-        if (fileToRemove == "." || fileToRemove == "..") {
-            std::cout << "Cannot remove " << fileToRemove << std::endl;
-            std::cout << "Try: 'rmdir " << fileToRemove << "'" << std::endl;
+        if (path.filename().string() == "." || path.filename().string() == "..") {
+            std::cout << "Cannot remove " << path.filename().string() << std::endl;
+            std::cout << "Try: 'rmdir " << path.filename().string() << "'" << std::endl;
             return true;
         }
 
-        // find position of to-be-removed file
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto position = mFilesystem->get_position(fileToRemove, curDir);
+        // find dir of to-be-removed file
+        auto dir = Shell::get_dir_entry_from_path(path.parent_path().string(), DirEntryType::DIR);
+        if (!dir) return true;
 
+        auto position = mFilesystem->get_position(path.filename().string(), dir.value());
         if (position >= 0)
-            mFilesystem->remove_dir_entry(curDir.mStartCluster, position);
+            mFilesystem->remove_dir_entry(dir->mStartCluster, position);
         else
-            std::cout << fileToRemove << " - no such file" << std::endl;
+            std::cout << path.filename().string() << " - no such file" << std::endl;
 
         return true;
     };
@@ -117,21 +118,23 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["rmdir"] = [this](Arguments& args) -> bool {
-        const std::string dirToRemove = args.front();
+        std::filesystem::path path(args.front());
 
         // sanity check
-        if (dirToRemove == "." || dirToRemove == "..") {
-            std::cout << "LOL, you really tried 'rmdir " << dirToRemove << "'" << std::endl;
+        if (path.filename().string() == "." || path.filename().string() == "..") {
+            std::cout << "LOL, you really tried 'rmdir " << path.filename().string() << "'" << std::endl;
             return true;
         }
 
-        DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
-        auto position = mFilesystem->get_position(dirToRemove, curDir);
+        // find dir of to-be-removed dir
+        auto dir = Shell::get_dir_entry_from_path(path.parent_path().string(), DirEntryType::DIR);
+        if (!dir) return true;
 
+        auto position = mFilesystem->get_position(path.filename().string(), dir.value());
         if (position >= 0)
-            mFilesystem->remove_dir_entry(curDir.mStartCluster, position);
+            mFilesystem->remove_dir_entry(dir->mStartCluster, position);
         else
-            std::cout << dirToRemove << " - no such directory" << std::endl;
+            std::cout << path.filename().string() << " - no such directory" << std::endl;
 
         return true;
     };
@@ -147,7 +150,7 @@ void Shell::fill_handlers() {
 
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(dir);
         for (auto& dirEntry : dirEntries) {
-            std::cout << Utils::remove_padding(dirEntry.mFilename) << std::endl;
+            std::cout << Utils::remove_padding(dirEntry.mFilename) << ((dirEntry.mIsFile) ? "" : "/") << std::endl;
         }
         return true;
     };
@@ -160,6 +163,11 @@ void Shell::fill_handlers() {
     };
     mHandlerMap["cd"] = [this](Arguments& args) -> bool {
         if (args.front() == ".") return true;
+        if (args.front() == "/") {
+            mCWD = "/";
+            mCWC = 0;
+            return true;
+        }
 
         DirEntry curDir = mFilesystem->get_dir_entry(mCWC, false, false);
         auto dirEntries = mFilesystem->read_dir_entry_as_dir(curDir);
@@ -213,7 +221,7 @@ void Shell::fill_handlers() {
         std::filesystem::path toPath(args.back());
 
         // check if source file exists
-        std::ifstream ifs(fromPath);
+        std::ifstream ifs(fromPath, std::ios::binary);
         if (!ifs.is_open()) {
             std::cout << fromPath.filename().string() << " - no such file" << std::endl;
             return true;
@@ -225,6 +233,9 @@ void Shell::fill_handlers() {
 
         // save file into string
         std::stringstream ss;
+//        while (ifs.good()) {
+//            ss.put(ifs.get());
+//        }
         ss << ifs.rdbuf();
         const auto fileContent = ss.str();
 
@@ -245,7 +256,7 @@ void Shell::fill_handlers() {
         }
 
         // check if target location exists
-        std::ofstream ofs(toPath);
+        std::ofstream ofs(toPath, std::ios::binary);
         if (!ofs.is_open()) {
             std::cout << toPath.parent_path().string() << " - no such file" << std::endl;
             return true;
@@ -311,7 +322,7 @@ void Shell::fill_handlers() {
     };
     mHandlerMap["format"] = [this](Arguments& args) -> bool {
         if (!std::regex_match(args[0], REGEX_FORMAT)) {
-            std::cout << "Invalid input: " << "format" << args[0] << std::endl;
+            std::cout << "Invalid input: " << "format " << args[0] << std::endl;
             std::cout << "Try e.g.     : " << "format 200KB" << std::endl;
             return true;
         }
