@@ -224,6 +224,28 @@ void Shell::fill_handlers() {
         return true;
     };
     mHandlerMap["outcp"] = [this](Arguments& args) -> bool {
+        std::filesystem::path fromPath(args.front());
+        std::filesystem::path toPath(args.back());
+
+        // check if source file exists
+        std::optional<DirEntry> fileToCopy = Shell::get_dir_entry_from_path(fromPath.string(), DirEntryType::BOTH);
+        if (!fileToCopy) return true;
+        if (!fileToCopy->mIsFile) {
+            std::cout << Utils::remove_padding(fileToCopy->mFilename) << " is a directory" << std::endl;
+            return true;
+        }
+
+        // check if target location exists
+        std::ofstream ofs(toPath);
+        if (!ofs.is_open()) {
+            std::cout << toPath.parent_path().string() << " - not found" << std::endl;
+            return true;
+        }
+
+        // print file content into string
+        const auto fileContent = mFilesystem->read_dir_entry_as_file(fileToCopy.value());
+        ofs << fileContent;
+
         return true;
     };
     mHandlerMap["load"] = [this](Arguments& args) -> bool {
