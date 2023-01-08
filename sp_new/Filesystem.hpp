@@ -239,7 +239,7 @@ class Filesystem {
          * @param parentCluster to know where to save the new DirEntry
          * @param toCopy DirEntry to be copied
          * @param nameOfCopy name of the new file
-         * @return newly created copy of a DirEntry or std::nulopt
+         * @return newly created copy of a DirEntry or std::nullopt
          */
         std::optional<DirEntry> copy_dir_entry(uint parentCluster, const DirEntry& toCopy, const std::string& nameOfCopy);
 
